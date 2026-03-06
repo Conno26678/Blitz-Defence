@@ -154,7 +154,7 @@ class Game {
         this.spawnDelay = 250; // 0.25 seconds in milliseconds
         this.waveStartAllowed = false; // Flag to control wave start button availability
 
-        // Load persisted settings (set from the Settings panel)
+        // Load persisted settings
         const _saved = (() => { try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); } catch(e) { return {}; } })();
         this.autoStart    = _saved.waveAuto  === true;  // default: manual
         this.showTooltips = _saved.tooltips  !== false;  // default: on
@@ -190,6 +190,11 @@ class Game {
 
         // Map management
         this.mapManager = new MapManager(this.width, this.height);
+
+        // Tower system
+        this.placedTowers = [];          // Tower instances placed on the map
+        this.selectedTower = null;       // Key from TOWER_TYPES currently selected in shop
+        this.towerShopRects = [];        // Clickable rects for the bottom shop panel
 
         this.renderer = new GameRenderer(this);
 
@@ -441,6 +446,7 @@ class Game {
         const expProgress = (this.exp / this.expToNextLevel) * 100;
         const expProgressFill = document.getElementById('expProgressFill');
         if (expProgressFill) expProgressFill.style.width = expProgress + '%';
+        this.updateTowerShopUI();
     }
 
 
@@ -632,6 +638,31 @@ class Game {
     }
 
     handleCanvasClick(x, y, e) {
+        // Tower placement on the map 
+        if (this.selectedTower && this.started && this.gameRunning) {
+            const def = TOWER_TYPES[this.selectedTower];
+
+            // Check whether the player can afford the tower
+            if (this.money < def.cost) {
+                console.log(`Not enough money to place ${def.name} (need ${def.cost}, have ${this.money})`);
+                return;
+            }
+
+            //  Check whether the placement point overlaps the track
+            const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
+            if (this.mapManager.isPointOnTrack(x, y, tolerance)) {
+                console.log('Cannot place tower on the track!');
+                return;
+            }
+
+            // Place the tower and deduct cost
+            this.placedTowers.push(new Tower(x, y, this.selectedTower));
+            this.money -= def.cost;
+            this.updateGameUI();
+            console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
+            return;
+        }
+
         // Check if wave start button was clicked
         if (this.pointInRect(x, y, this.uiRects.waveStart)) {
             console.log("Wave start button clicked!");
@@ -660,6 +691,133 @@ class Game {
 
 
 
+    /**
+     * Select or deselect a tower type for placement.
+     * Called by the HTML shop panel buttons.
+     */
+    selectTower(key) {
+        this.selectedTower = (this.selectedTower === key) ? null : key;
+        this.updateTowerShopUI();
+    }
+
+    /**
+     * Refresh affordability and selection state on all HTML tower shop cards.
+     */
+    updateTowerShopUI() {
+        Object.keys(TOWER_TYPES).forEach(key => {
+            const btn = document.getElementById('towerBtn-' + key);
+            if (!btn) return;
+            const canAfford = this.money >= TOWER_TYPES[key].cost;
+            btn.classList.toggle('selected', this.selectedTower === key);
+            btn.classList.toggle('unaffordable', !canAfford);
+        });
+    }
+
+    /**
+     * (Legacy) Canvas-based tower shop — no longer called; HTML panel is used instead.
+     * Kept here in case a canvas fallback is needed.
+     */
+    renderTowerShop() {
+        const { ctx } = this;
+        const types = Object.keys(TOWER_TYPES);
+        const btnW = 80;
+        const btnH = 70;
+        const gap = 8;
+        const totalW = types.length * (btnW + gap) - gap;
+        const shopX = this.width - totalW - 16;
+        const shopY = this.height - btnH - 16;
+
+        this.towerShopRects = [];
+
+        // Panel background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(shopX - 8, shopY - 8, totalW + 16, btnH + 16);
+
+        types.forEach((key, i) => {
+            const def = TOWER_TYPES[key];
+            const btnX = shopX + i * (btnW + gap);
+            const isSelected = this.selectedTower === key;
+            const canAfford = this.money >= def.cost;
+
+            // Button background
+            ctx.fillStyle = isSelected
+                ? 'rgba(255, 255, 255, 0.28)'
+                : canAfford ? 'rgba(40, 40, 40, 0.8)' : 'rgba(60, 60, 60, 0.5)';
+            ctx.fillRect(btnX, shopY, btnW, btnH);
+
+            // Border (gold when selected, tower colour when affordable, grey otherwise)
+            ctx.strokeStyle = isSelected ? '#FFD700' : canAfford ? def.color : '#555555';
+            ctx.lineWidth = isSelected ? 2.5 : 1.5;
+            ctx.strokeRect(btnX, shopY, btnW, btnH);
+
+            // Tower icon (small square)
+            ctx.fillStyle = canAfford ? def.color : '#666666';
+            const iconSize = 20;
+            ctx.fillRect(btnX + (btnW - iconSize) / 2, shopY + 8, iconSize, iconSize);
+
+            // Name label
+            ctx.fillStyle = canAfford ? '#ffffff' : '#888888';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(def.name, btnX + btnW / 2, shopY + 44);
+
+            // Cost label
+            ctx.fillStyle = canAfford ? '#FFD700' : '#666666';
+            ctx.font = '11px Arial';
+            ctx.fillText('$' + def.cost, btnX + btnW / 2, shopY + 58);
+
+            this.towerShopRects.push({ x: btnX, y: shopY, w: btnW, h: btnH, key });
+        });
+
+        // Restore alignment default
+        ctx.textAlign = 'left';
+    }
+
+    /**
+     * Render a semi-transparent preview of the tower under the cursor while
+     * the player has a tower type selected.  Shows red when placement is
+     * invalid (on track or can't afford), green-tinted when valid.
+     */
+    renderTowerPlacementPreview() {
+        if (!this.selectedTower) return;
+        const { ctx } = this;
+        const def = TOWER_TYPES[this.selectedTower];
+
+        const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
+        const onTrack = this.mapManager.isPointOnTrack(this.mouseX, this.mouseY, tolerance);
+        const canAfford = this.money >= def.cost;
+        const valid = !onTrack && canAfford;
+
+        const px = this.mouseX - def.width / 2;
+        const py = this.mouseY - def.height / 2;
+
+        // Range ring
+        ctx.beginPath();
+        ctx.arc(this.mouseX, this.mouseY, def.range, 0, Math.PI * 2);
+        ctx.strokeStyle = valid ? 'rgba(255,255,255,0.20)' : 'rgba(255,0,0,0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Tower ghost
+        ctx.fillStyle = valid ? def.color + 'aa' : 'rgba(220, 30, 30, 0.55)';
+        ctx.fillRect(px, py, def.width, def.height);
+        ctx.strokeStyle = valid ? '#ffffff' : '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px, py, def.width, def.height);
+
+        // Tooltip
+        const label = !canAfford
+            ? `Need $${def.cost} (have $${this.money})`
+            : onTrack ? 'Cannot place on track' : `Place ${def.name} ($${def.cost})`;
+        ctx.fillStyle = valid ? 'rgba(0,0,0,0.7)' : 'rgba(180,0,0,0.7)';
+        const tw = ctx.measureText(label).width + 12;
+        ctx.fillRect(this.mouseX + 14, this.mouseY - 22, tw, 20);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, this.mouseX + 20, this.mouseY - 7);
+    }
+
     quitToMenu() {
         console.log('quitToMenu called');
 
@@ -668,6 +826,12 @@ class Game {
         this.gameRunning = false;
         this.gamePaused = false;
         this.showLevelUp = false;
+        this.placedTowers = [];
+        this.selectedTower = null;
+
+        // Hide the HTML tower shop when returning to menu
+        const _ts = document.getElementById('towerShop');
+        if (_ts) _ts.classList.add('hidden');
 
         // Reset payment
         // hasPaid = false;
@@ -760,6 +924,19 @@ class Game {
 
         this.checkWaveProgress();
         this.checkLevelUp();
+
+        // Update placed towers (acquire targets & fire)
+        const allEnemies = [
+            ...this.enemies,
+            ...this.shooters,
+            ...this.tanks,
+            ...this.sprinters,
+            ...this.bosses
+        ];
+        this.placedTowers.forEach(tower => {
+            tower.update(deltaTime, allEnemies);
+            tower.shoot(this.bullets);
+        });
     }
 
     isBossWave() {
@@ -1589,6 +1766,8 @@ class Game {
         this.sprinters = [];
         this.bosses = [];
         this.particles = [];
+        this.placedTowers = [];
+        this.selectedTower = null;
         this.exp = 0;
         this.level = 1;
         this.money = 250;
@@ -1606,7 +1785,7 @@ class Game {
         this.currentWaveIndex = 0;
         this.waveComplete = false;
         this.waveStartAllowed = false;
-        // Re-read persisted settings so restart honours the player's preferences
+        // Re-read persisted settings
         const _s = (() => { try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); } catch(e) { return {}; } })();
         this.autoStart    = _s.waveAuto  === true;
         this.showTooltips = _s.tooltips  !== false;
@@ -1628,6 +1807,17 @@ class Game {
         this.player.game = this;
 
         document.getElementById('gameOver').classList.add('hidden');
+
+        // Show / hide the HTML tower shop panel
+        const _towerShop = document.getElementById('towerShop');
+        if (_towerShop) {
+            if (startImmediately) {
+                _towerShop.classList.remove('hidden');
+                this.updateTowerShopUI();
+            } else {
+                _towerShop.classList.add('hidden');
+            }
+        }
     }
 
     render() {
@@ -1665,6 +1855,14 @@ class Game {
         this.mapManager.renderPaths(this.ctx);
         this.mapManager.renderBase(this.ctx);
         this.mapManager.renderMapName(this.ctx);
+
+        // Render placed towers (before enemies so they appear beneath)
+        this.placedTowers.forEach(tower => tower.render(this.ctx));
+
+        // Tower placement preview (ghost under cursor when a tower is selected)
+        if (this.started && this.gameRunning && this.selectedTower) {
+            this.renderTowerPlacementPreview();
+        }
 
         // Draw game objects
         this.player.render(this.ctx);

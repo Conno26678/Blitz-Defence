@@ -761,3 +761,90 @@ label.checkbox {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
 }
+
+/* ── Tower Shop Panel ─────────────────────────────────────────── */
+#towerShop {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 25;
+    background: rgba(0, 0, 0, 0.72);
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    pointer-events: all;
+}
+
+#towerShop.hidden {
+    display: none;
+}
+
+.tower-shop-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.45);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 4px;
+    white-space: nowrap;
+}
+
+.tower-card {
+    width: 76px;
+    background: rgba(30, 30, 30, 0.92);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    border-radius: 7px;
+    cursor: pointer;
+    padding: 6px 4px;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.tower-card:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(50, 50, 50, 0.95);
+}
+
+.tower-card.selected {
+    border-color: #FFD700;
+    background: rgba(255, 215, 0, 0.13);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.35);
+}
+
+.tower-card.unaffordable {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.tower-card-icon {
+    width: 28px;
+    height: 28px;
+    margin: 0 auto 5px;
+    border-radius: 4px;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+.tower-card-name {
+    font-size: 11px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 3px;
+}
+
+.tower-card-stats {
+    font-size: 9px;
+    color: #aaaaaa;
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.tower-card-cost {
+    font-size: 12px;
+    font-weight: bold;
+    color: #FFD700;
+}

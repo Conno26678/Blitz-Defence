@@ -9,7 +9,7 @@
 </head>
 
 <body>
-    <!-- Settings button — fixed to top-right of viewport, always visible -->
+    <!-- Settings button -->
     <button id="settingsCornerBtn" class="settings-corner-btn" onclick="openSettings()" title="Settings">&#9881;</button>
 
     <!-- Audio elements -->
@@ -40,6 +40,12 @@
     <audio id="bossDefeat" loop preload="auto">
         <source src="sfx/bossDefeat.wav" type="audio/wav">
     </audio>
+    <audio id="settingOn" preload="auto">
+        <source src="sfx/soundon.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="settingOff" preload="auto">
+        <source src="sfx/lightswitch.mp3" type="audio/mpeg">
+    </audio>
 
     <div id="gameContainer">
         <canvas id="gameCanvas" width="1300" height="800"></canvas>
@@ -58,6 +64,32 @@
                 </div>
                 <span class="progress-label">Experience</span>
             </div> -->
+        </div>
+
+        <!-- Tower Shop  -->
+        <div id="towerShop" class="hidden">
+            <span class="tower-shop-label">Towers</span>
+
+            <div class="tower-card" id="towerBtn-shooter" onclick="window.game && window.game.selectTower('shooter')" title="Shooter \u2014 single target, medium range">
+                <div class="tower-card-icon" style="background:#4CAF50"></div>
+                <div class="tower-card-name">Shooter</div>
+                <div class="tower-card-stats">DMG 1 &bull; RNG 100<br>Rate 1.2s</div>
+                <div class="tower-card-cost">$100</div>
+            </div>
+
+            <div class="tower-card" id="towerBtn-blaster" onclick="window.game && window.game.selectTower('blaster')" title="Blaster \u2014 6-way burst, close range">
+                <div class="tower-card-icon" style="background:#FF9800"></div>
+                <div class="tower-card-name">Blaster</div>
+                <div class="tower-card-stats">DMG 2&times;6 &bull; RNG 25<br>Rate 1.25s</div>
+                <div class="tower-card-cost">$250</div>
+            </div>
+
+            <div class="tower-card" id="towerBtn-railgun" onclick="window.game && window.game.selectTower('railgun')" title="Railgun \u2014 high damage, extreme range">
+                <div class="tower-card-icon" style="background:#2196F3"></div>
+                <div class="tower-card-name">Railgun</div>
+                <div class="tower-card-stats">DMG 5 &bull; RNG 1000<br>Rate 3.5s</div>
+                <div class="tower-card-cost">$300</div>
+            </div>
         </div>
 
         <!-- Start Menu -->
@@ -215,7 +247,7 @@
     <script src="/game/waves.js"></script>
     <script src="/game/main.js"></script>
     <script>
-        // ── Settings ──────────────────────────────────────────────
+        // Settings
         const _defaultSettings = { waveAuto: false, tooltips: true, sound: true };
 
         function _loadSettings() {
@@ -249,8 +281,14 @@
             document.getElementById('soundOffBtn').classList.toggle('active',    s.sound === false);
         }
 
+        function _playToggleSound(value) {
+            const sfx = document.getElementById(value ? 'settingOn' : 'settingOff');
+            if (sfx) { sfx.currentTime = 0; sfx.play().catch(() => {}); }
+        }
+
         function setSetting(key, value) {
             const s = _loadSettings();
+            if (s[key] !== value) _playToggleSound(value);
             s[key] = value;
             _saveSettings(s);
             _applySettingsToGame(s);
@@ -277,7 +315,7 @@
             const s = _loadSettings();
             _syncToggleUI(s);
 
-            // Re-apply each time game starts (startBtn, restartBtn, etc.)
+            // Re-apply each time game starts (startBtn, restartBtn)
             ['startBtn','restartBtn','pauseRestartBtn','victoryRestartBtn'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('click', () => {
