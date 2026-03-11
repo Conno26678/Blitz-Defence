@@ -73,7 +73,7 @@
             <div class="tower-card" id="towerBtn-shooter" onclick="window.game && window.game.selectTower('shooter')" title="Shooter \u2014 single target, medium range">
                 <div class="tower-card-icon" style="background:#4CAF50"></div>
                 <div class="tower-card-name">Shooter</div>
-                <div class="tower-card-stats">DMG 1 &bull; RNG 100<br>Rate 1.2s</div>
+                <div class="tower-card-stats">DMG 1 &bull; RNG 100<br>Rate 1s</div>
                 <div class="tower-card-cost">$100</div>
             </div>
 
@@ -90,6 +90,12 @@
                 <div class="tower-card-stats">DMG 5 &bull; RNG 1000<br>Rate 3.5s</div>
                 <div class="tower-card-cost">$300</div>
             </div>
+            <div class="tower-card" id="towerBtn-hacker" onclick="window.game && window.game.selectTower('hacker')" title="Hacker \u2014 Makes extra money every round aqnd over time, deals no damage">
+                <div class="tower-card-icon" style="background:#9C27B0"></div>
+                <div class="tower-card-name">Hacker</div>
+                <div class="tower-card-stats">Generates extra money<br>$250/wave + $25/5s</div>
+                <div class="tower-card-cost">$850</div>
+            </div>
         </div>
 
         <!-- Start Menu -->
@@ -99,7 +105,6 @@
                 <p class="subtitle">Place towers to defend against waves of Blitzing Pixels.</p>
                 <% if (isAdmin) { %>
                     <button id="adminPanelBtn" onclick="window.location.href='/admin'">Admin Panel</button>
-                    <button id="testStartBtn" class="secondary-btn" style="font-size:13px;padding:8px 18px;">&#9654; Test Start (Skip Payment)</button>
                     <% } %>
 
                         <div class="menu-content">

@@ -36,6 +36,14 @@ const TOWER_TYPES = {
         projectileSpeed: 0.8,
         width: 30,
         height: 30
+    },
+    hacker: {
+        name: 'Hacker',
+        cost: 850,
+        damage: 0,
+        color: '#9C27B0',
+        width: 30,
+        height: 30
     }
 };
 
