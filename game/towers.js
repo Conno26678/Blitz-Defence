@@ -1,4 +1,4 @@
-// Tower definition class
+// Tower classes
 
 const TOWER_TYPES = {
     shooter: {
@@ -44,7 +44,146 @@ const TOWER_TYPES = {
         color: '#9C27B0',
         width: 30,
         height: 30
+    },
+    gambling: {
+        name: 'Gambling',
+        cost: 600,
+        damage: 1,
+        range: 100,
+        fireRate: 1500,
+        color: '#E91E63', //Reset with gamling or slots image later
+        projectileCount: 1,
+        projectileSpeed: 1,
+        width: 30,
+        height: 30
     }
+};
+
+const TOWER_UPGRADES = {
+    shooter: [
+        {
+            id: 'scout',
+            tier: 1,
+            name: 'Scout',
+            description: 'Attack Faster over a longer range',
+            cost: 325,
+            apply: (tower) => {
+                tower.fireRate = Math.max(120, Math.round(tower.fireRate * 0.9));
+                tower.range += 5;
+            }
+        }
+    ],
+    shooter: [
+        {
+            id: 'betterBullets',
+            tier: 2,
+            name: 'Better Bullets',
+            description: 'Higher caliber bullets with increased damage and puncture',
+            cost: 650,
+            apply: (tower) => {}
+        }
+    ],
+    shooter: [
+        {
+            id: 'goodGoggles',
+            tier: 3,
+            name: 'Good Goggles',
+            description: 'Improved vision allows you to see farther and through stealth',
+            cost: 1200,
+            apply: (tower) => {}
+        }
+    ],
+    shooter: [
+        {
+            id: 'twinFire',
+            tier: 4,
+            name: 'Twin Fire',
+            description: 'Double the gun, double the bullets, and double the fun.',
+            cost: 2450,
+            apply: (tower) => {}
+        }
+    ],
+     shooter: [
+        {
+            id: 'rapidFire',
+            tier: 5,
+            name: 'Rapid Fire',
+            description: 'Took a few gun saftey courses, more damage, more peirce, and much faster fire rate.',
+            cost: 5500,
+            apply: (tower) => {}
+        }
+    ],
+    shooter: [
+        {
+            id: 'tf2scout',
+            tier: 6,
+            name: 'TF2 Scout',
+            description: 'THINK FAST CHUCKLENUTS! An aggressive and snarky fighter with even higher damage and fire rate. Chance to stun enemies on hit.',
+            cost: 10000,
+            apply: (tower) => {}
+        }
+    ],
+    railgun: [
+        {
+            id: 'betterCooling',
+            tier: 1,
+            name: 'Better Cooling',
+            description: 'Improved cooling system allowing for slightlyfaster firing.',
+            cost: 325,
+            apply: (tower) => {}
+        }
+    ],
+    railgun: [
+        {
+            id: 'highCaliber',
+            tier: 2,
+            name: 'High Caliber',
+            description: 'Higher caliber bullets with the ability to rip through armor and deal increased damage and puncture',
+            cost: 650,
+            apply: (tower) => {}
+        }
+    ],
+    railgun: [
+        {
+            id: 'overclocked',
+            tier: 3,
+            name: 'Overclocked',
+            description: 'Improved firing mechanism allowing for more damage but slowing down the fire rate.',
+            cost: 1200,
+            apply: (tower) => {}
+        }
+    ],
+    railgun: [
+        {
+            id: 'refraction',
+            tier: 4,
+            name: 'Refraction',
+            description: 'Advanced refractive lens technology that refracts into a multitude of smaller blasts.',
+            cost: 2450,
+            apply: (tower) => {}
+        }
+    ],
+    railgun: [
+        {
+            id: 'ultimatelazer',
+            tier: 5,
+            name: 'Ultimate Lazer',
+            description: 'The ultimate laser weapon with an unstopable beam giving increased damage, puncture, but slowing fire rate.',
+            cost: 5500,
+            apply: (tower) => {}
+        }
+    ],
+    railgun: [
+        {
+            id: 'mikubeam',
+            tier: 6,
+            name: 'Miku Miku Beam',
+            description: 'Miku Miku Beeeeeeaaammmm! Improves damage, attack speed, and gives infinite pierce/range.',
+            //50 digipogs
+            cost: 50,
+            apply: (tower) => {}
+        }
+    ]
 };
 
 class Tower {
@@ -66,9 +205,37 @@ class Tower {
         this.width = def.width;
         this.height = def.height;
         this.projectileCount = def.projectileCount || 1;
+        this.pierce = def.pierce || 1;
+        this.seeHidden = !!def.seeHidden;
+
+        this.level = 1;
+        this.appliedUpgradeIds = [];
+
         this.fireCooldown = 0;
         this.target = null;
         this.showRange = false;
+    }
+
+    getAvailableUpgrades() {
+        const options = TOWER_UPGRADES[this.type] || [];
+        return options.filter(upgrade => !this.appliedUpgradeIds.includes(upgrade.id));
+    }
+
+    canAffordNextUpgrade(money) {
+        const [nextUpgrade] = this.getAvailableUpgrades();
+        if (!nextUpgrade) return false;
+        return money >= nextUpgrade.cost;
+    }
+
+    applyUpgrade(upgradeId) {
+        const availableUpgrades = this.getAvailableUpgrades();
+        const upgrade = availableUpgrades.find(item => item.id === upgradeId);
+        if (!upgrade) return null;
+
+        upgrade.apply(this);
+        this.appliedUpgradeIds.push(upgrade.id);
+        this.level += 1;
+        return upgrade;
     }
 
     /**
@@ -87,6 +254,7 @@ class Tower {
 
         enemies.forEach(enemy => {
             if (!enemy || enemy.hp <= 0) return;
+            if (enemy.hidden && !this.seeHidden) return;
             const dx = (enemy.x + (enemy.width || 0) / 2) - cx;
             const dy = (enemy.y + (enemy.height || 0) / 2) - cy;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -131,6 +299,7 @@ class Tower {
             bullet.vx = Math.cos(angle) * this.projectileSpeed;
             bullet.vy = Math.sin(angle) * this.projectileSpeed;
             bullet.damage = this.damage;
+            bullet.pierce = this.pierce || 1;
             bullet.towerColor = this.color;
             bullet.fromTower = true;
 
