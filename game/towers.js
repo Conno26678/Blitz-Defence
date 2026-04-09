@@ -1,5 +1,7 @@
 // Tower classes
 
+const { name } = require("ejs");
+
 const TOWER_TYPES = {
     shooter: {
         name: 'Shooter',
@@ -45,8 +47,8 @@ const TOWER_TYPES = {
         width: 30,
         height: 30
     },
-    gambling: {
-        name: 'Gambling',
+    gambler: {
+        name: 'Gambler',
         cost: 600,
         damage: 1,
         range: 100,
@@ -56,6 +58,67 @@ const TOWER_TYPES = {
         projectileSpeed: 1,
         width: 30,
         height: 30
+    },
+    overlord: {
+        name: 'Overlord',
+        cost: 650,
+        damage: 1,
+        range: 25,
+        fireRate: 1250,
+        width: 30,
+        height: 30,
+        seeHiden: true,
+        summonSpeed: 2500,
+        color: '#795548',
+        // Summon Stats
+        // Summon Type: Enemy
+        // Spawn Count: 3
+        // Spawn Damage: Enemy damage
+        // Spawn Life: Enemies health
+        // Spawn Speed: Enemies speed
+        // seeHidden = true
+        // damageReinforced = true
+    },
+    boomer: {
+        name: 'Boomer',
+        cost: 500,
+        damage: 3,
+        range: 65,
+        fireRate: 1500,
+        pierce: 0,
+        projectileSpeed: 0.85,
+        projectileCount: 1,
+        seeHidden: false,
+        damageReinforced: true,
+        explosionArea: 25,
+        color: '#f44336', //add vault boy later
+        width: 30,
+        height: 30
+    },
+    generator: {
+        name: 'Shield Generator',
+        cost: 50, //digipogs, change value later
+        damage: 0,
+        color: '#00BCD4', //add shield image later
+        width: 30,
+        height: 30,
+        regenSpeed : 5000,
+        regenAmount : 15,
+        regenMax: 30
+    },
+    sentinel: {
+        name: 'Sentinel',
+        range: 25,
+        damage: 1,
+        fireRate: 500,
+        pierce: 0,
+        projectileSpeed: 1,
+        projectileLife: 1,
+        projectileCount: 1,
+        seeHidden: false,
+        damageReinforced: false,
+        width: 40,
+        height: 30,
     }
 };
 
@@ -179,11 +242,256 @@ const TOWER_UPGRADES = {
             tier: 6,
             name: 'Miku Miku Beam',
             description: 'Miku Miku Beeeeeeaaammmm! Improves damage, attack speed, and gives infinite pierce/range.',
-            //50 digipogs
+            //50 digipogs, change value later
             cost: 50,
             apply: (tower) => {}
         }
-    ]
+    ],
+    blaster: [
+        {
+            id: 'fastFiring',
+            tier: 1,
+            name: 'Fast Firing',
+            description: 'Improved firing mechanism allowing for faster firing.',
+            cost: 325,
+            apply: (tower) => {}
+        }
+    ],
+    blaster: [
+        {
+            id: 'strongshells',
+            tier: 2,
+            name: 'Strong Shells',
+            description: 'Enhanced shells that deal more damage and hit more enemies.',
+            cost: 650,
+            apply: (tower) => {}
+        }
+    ],
+    blaster: [
+        {
+            id: 'sturdyFrame',
+            tier: 3,
+            name: 'Sturdy Frame',
+            description: 'A more robust frame that can handle increased stress. Increases damage and lifespan',
+            cost: 1200,
+            apply: (tower) => {}
+        }
+    ],
+    blaster: [
+        {
+            id: 'doubleBarrel',
+            tier: 4,
+            name: 'Double Barrel',
+            description: 'Two barrels, doubling the number of projectiles.',
+            cost: 2450,
+            apply: (tower) => {}
+        }
+    ],
+    blaster: [
+        {
+            id: 'overdrive',
+            tier: 5,
+            name: 'Overdrive',
+            description: 'Time to take this puppy into overdrive. Increased damage and pierce, but slower fire rate.',
+            cost: 5500,
+            apply: (tower) => {}
+        }
+    ],
+    blaster: [
+        {
+            id: 'plankton',
+            tier: 6,
+            name: 'Maximum Overdrive',
+            description: 'Im shifting into MAXIMUM OVERDRIVE! Increased fire rate and range.',
+            //50 digipogs, change value later
+            cost: 50,
+            apply: (tower) => {}
+        }
+    ],
+    gambler: [
+        {
+            id: 'luckyCharm',
+            tier: 1,
+            name: 'Lucky Charm',
+            description: 'A lucky charm that allows you to try your luck and get a different tower/upgrade.',
+            //50 digipogs, change value later
+            cost: 50,
+            apply: (tower) => {}
+        }
+    ],
+    hacker: [
+        {
+            id: 'swiftSkills',
+            tier: 1,
+            name: 'Swift Skills',
+            description: 'Improved hacking skills allowing for faster hacking.',
+            cost: 1325,
+            apply: (tower) => {}
+        }
+    ],
+    hacker: [
+        {
+            id: 'hackerKnowledge',
+            tier: 2,
+            name: 'Hacker Knowledge',
+            description: 'Enhanced abilities allow for deeper system access. Make some more money per hack.',
+            cost: 3975,
+            apply: (tower) => {}
+        }
+    ],
+    hacker: [
+        {
+            id: 'malwareExpert',
+            tier: 3,
+            name: 'Malware Expert',
+            description: 'Advanced malware  allow for more sophisticated attacks and double the payout per hack.',
+            cost: 15000,
+            apply: (tower) => {}
+        }
+    ],
+    hacker: [
+        {
+            id: 'systemOverride',
+            tier: 4,
+            name: 'System Override',
+            description: 'Time to make the big bucks! Override system controls to generate more money and triple the amount per hack.',
+            cost: 63500,
+            apply: (tower) => {}
+        }
+    ],
+    hacker: [
+        {
+            id: 'merkman',
+            tier: 5,
+            name: 'The Merkman',
+            description: 'Wait, I know that guy! How did he get here? Merkert will periodically remove specail states from enemies',
+            //50 digipogs, change value later
+            cost: 50,
+            apply: (tower) => {}
+        }
+    ],
+    overlord: [
+        {
+            id: 'swiftSummon',
+            tier: 1,
+            name: 'Swift Summon',
+            description: 'Summons enemies more quickly and in greater numbers.',
+            cost: 850,
+            apply: (tower) => {}
+        }
+    ],
+    overlord: [
+        {
+            id: 'strongSummons',
+            tier: 2,
+            name: 'Strong Summons',
+            description: 'Summoned enemies are move with haste and are more powerful.',
+            cost: 1900,
+            apply: (tower) => {}
+        }
+    ],
+    overlord: [
+        {
+            id: 'greaterSummons',
+            tier: 3,
+            name: 'Greater Summons',
+            description: 'Summon enemis in even greater numbers and some have increased speed.',
+            cost: 3500,
+            apply: (tower) => {}
+        }
+    ],
+    overlord: [
+        {
+            id: 'bigbad',
+            tier: 4,
+            name: 'Big Bad fella',
+            description: 'Summons a boss among your minions.',
+            cost: 3500,
+            apply: (tower) => {}
+        }
+    ],
+    overlord: [
+        {
+            id: 'hordeArmy',
+            tier: 5,
+            name: 'Horde Army',
+            description: 'Summons a horde of enemies to overwhelm your foes. Spawn count is doubled but less frequent.',
+            cost: 7500,
+            apply: (tower) => {}
+        }
+    ],
+    overlord: [
+        {
+            id: 'chickenJockey',
+            tier: 6,
+            name: 'Chicken Jockey',
+            description: 'Chicken Jockeys! Peck your enemies eyes out. Increased spawn count and speed with less summon speed.',
+            //50 digipogs, change value later
+            cost: 50,
+            apply: (tower) => {}
+        }
+    ],
+    boomer: [
+        {
+            id: 'heavyPayload',
+            tier: 1,
+            name: 'Heavy Payload',
+            description: 'Big boom hehe. Increased area and damage.',
+            cost: 650,
+            apply: (tower) => {}
+        }
+    ],
+    boomer: [
+        {
+            id: 'laserGuidance',
+            tier: 2,
+            name: 'Laser Guidance',
+            description: 'A laser guidance system that allows for more accurate range.',
+            cost: 1500,
+            apply: (tower) => {}
+        }
+    ],
+    boomer: [
+        {
+            id: 'fastReload',
+            tier: 3,
+            name: 'Fast Reload',
+            description: 'Reloads quicker for more destruction faster.',
+            cost: 4000,
+            apply: (tower) => {}
+        }
+    ],
+    boomer: [
+        {
+            id: 'aerodynamicShells',
+            tier: 4,
+            name: 'Aerodynamic Shells',
+            description: 'Improved aerodynamics for faster firing and piercing.',
+            cost: 9800,
+            apply: (tower) => {}
+        }
+    ],
+    boomer: [
+        {
+            id: 'clusterBomb',
+            tier: 5,
+            name: 'Cluster Bomb',
+            description: 'Fire a wave of 5 rockets with increased damage.',
+            cost: 12000,
+            apply: (tower) => {}
+        }
+    ],
+    boomer: [
+        {
+            id: 'cluster',
+            tier: 6,
+            name: 'Cluster F***',
+            description: 'Youre gonna want to get in a vault for this one! Whenever a bomb explodes release a ring of smaller bombs around the area. ',
+            //50 digipogs, change value later.
+            cost: 50,
+            apply: (tower) => {}
+        }
+    ],
 };
 
 class Tower {
