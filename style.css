@@ -764,18 +764,118 @@ label.checkbox {
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
     z-index: 25;
-    background: rgba(0, 0, 0, 0.72);
-    padding: 8px 14px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    min-width: 340px;
+    max-width: min(760px, calc(100vw - 32px));
+    background: linear-gradient(180deg, rgba(10, 10, 10, 0.88), rgba(25, 25, 25, 0.94));
+    padding: 12px 14px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(6px);
     pointer-events: all;
 }
 
 #towerShop.hidden {
     display: none;
+}
+
+.tower-shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.tower-shop-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.tower-shop-hint {
+    flex: 1;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.35;
+    text-align: right;
+}
+
+.tower-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.tower-card {
+    width: 100%;
+    min-height: 128px;
+    background: rgba(30, 30, 30, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 8px;
+    text-align: left;
+    transition: transform 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tower-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.42);
+    background: rgba(48, 48, 48, 0.96);
+}
+
+.tower-card.selected {
+    border-color: #FFD700;
+    background: rgba(255, 215, 0, 0.12);
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.2), 0 0 12px rgba(255, 215, 0, 0.22);
+}
+
+.tower-card.unaffordable {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
+.tower-card-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    border: 2px solid rgba(255, 255, 255, 0.24);
+}
+
+.tower-card-name {
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.tower-card-stats {
+    font-size: 9px;
+    color: #b2b2b2;
+    line-height: 1.35;
+    min-height: 30px;
+}
+
+.tower-card-cost {
+    margin-top: auto;
+    font-size: 12px;
+    font-weight: bold;
+    color: #FFD700;
+}
+
+.tower-card-action {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.74);
+    letter-spacing: 0.2px;
 }
 
 #towerUpgradePanel {
@@ -807,6 +907,42 @@ label.checkbox {
     color: #bfbfbf;
     line-height: 1.35;
     min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.upgrade-preview-img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 4px;
+}
+
+.upgrade-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.upgrade-name {
+    font-weight: bold;
+    color: #ffffff;
+    font-size: 12px;
+}
+
+.upgrade-description {
+    font-size: 11px;
+    color: #bfbfbf;
+    line-height: 1.3;
+}
+
+.upgrade-cost {
+    font-weight: bold;
+    color: #4caf50;
+    font-size: 12px;
+    margin-top: 2px;
 }
 
 .tower-upgrade-btn {
@@ -830,72 +966,6 @@ label.checkbox {
     border-color: #666666;
     color: #a0a0a0;
     cursor: not-allowed;
-}
-
-.tower-shop-label {
-    font-size: 11px;
-    font-weight: bold;
-    color: rgba(255, 255, 255, 0.45);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-right: 4px;
-    white-space: nowrap;
-}
-
-.tower-card {
-    width: 76px;
-    background: rgba(30, 30, 30, 0.92);
-    border: 2px solid rgba(255, 255, 255, 0.18);
-    border-radius: 7px;
-    cursor: pointer;
-    padding: 6px 4px;
-    text-align: center;
-    transition: border-color 0.15s, background 0.15s;
-    user-select: none;
-}
-
-.tower-card:hover {
-    border-color: rgba(255, 255, 255, 0.5);
-    background: rgba(50, 50, 50, 0.95);
-}
-
-.tower-card.selected {
-    border-color: #FFD700;
-    background: rgba(255, 215, 0, 0.13);
-    box-shadow: 0 0 8px rgba(255, 215, 0, 0.35);
-}
-
-.tower-card.unaffordable {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.tower-card-icon {
-    width: 28px;
-    height: 28px;
-    margin: 0 auto 5px;
-    border-radius: 4px;
-    border: 2px solid rgba(255, 255, 255, 0.25);
-}
-
-.tower-card-name {
-    font-size: 11px;
-    font-weight: bold;
-    color: #ffffff;
-    margin-bottom: 3px;
-}
-
-.tower-card-stats {
-    font-size: 9px;
-    color: #aaaaaa;
-    margin-bottom: 4px;
-    line-height: 1.4;
-}
-
-.tower-card-cost {
-    font-size: 12px;
-    font-weight: bold;
-    color: #FFD700;
 }
 
 .settings-buttons {

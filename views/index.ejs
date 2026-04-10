@@ -68,34 +68,11 @@
 
         <!-- Tower Shop  -->
         <div id="towerShop" class="hidden">
-            <span class="tower-shop-label">Towers</span>
-
-            <div class="tower-card" id="towerBtn-shooter" onclick="window.game && window.game.selectTower('shooter')" title="Shooter \u2014 single target, medium range">
-                <div class="tower-card-icon" style="background:#4CAF50"></div>
-                <div class="tower-card-name">Shooter</div>
-                <div class="tower-card-stats">DMG 1 &bull; RNG 100<br>Rate 1s</div>
-                <div class="tower-card-cost">$100</div>
+            <div class="tower-shop-header">
+                <span class="tower-shop-label">Tower Shop</span>
+                <span id="towerShopHint" class="tower-shop-hint">Select a tower to buy, then click the map to place it.</span>
             </div>
-
-            <div class="tower-card" id="towerBtn-blaster" onclick="window.game && window.game.selectTower('blaster')" title="Blaster \u2014 6-way burst, close range">
-                <div class="tower-card-icon" style="background:#FF9800"></div>
-                <div class="tower-card-name">Blaster</div>
-                <div class="tower-card-stats">DMG 2&times;6 &bull; RNG 25<br>Rate 1.25s</div>
-                <div class="tower-card-cost">$250</div>
-            </div>
-
-            <div class="tower-card" id="towerBtn-railgun" onclick="window.game && window.game.selectTower('railgun')" title="Railgun \u2014 high damage, long range, slow fire rate">
-                <div class="tower-card-icon" style="background:#2196F3"></div>
-                <div class="tower-card-name">Railgun</div>
-                <div class="tower-card-stats">DMG 5 &bull; RNG 1000<br>Rate 3.5s</div>
-                <div class="tower-card-cost">$300</div>
-            </div>
-            <div class="tower-card" id="towerBtn-hacker" onclick="window.game && window.game.selectTower('hacker')" title="Hacker \u2014 Makes extra money every round aqnd over time, deals no damage">
-                <div class="tower-card-icon" style="background:#9C27B0"></div>
-                <div class="tower-card-name">Hacker</div>
-                <div class="tower-card-stats">Generates extra money<br>$250/wave + $25/5s</div>
-                <div class="tower-card-cost">$850</div>
-            </div>
+            <div id="towerShopCards" class="tower-shop-grid"></div>
         </div>
 
         <div id="towerUpgradePanel" class="hidden">
