@@ -87,7 +87,8 @@ function isAuthenticated(req, res, next) {
 };
 
 function isAdmin(req, res, next) {
-    if (req.session.user && (req.session.token.id === 27 || req.session.token.id === 33 || req.session.token.id === 3 || req.session.token.id === 2)) {
+    if (req.session.user && (req.session.token.id === 27 || req.session.token.id === 33 //|| req.session.token.id === 3 || req.session.token.id === 2
+    )) {
         next();
     } else {
         res.status(403).send('Admin access required');
@@ -111,7 +112,7 @@ app.use(express.static(path.join(__dirname)));
 // Route for the game
 app.get('/', isAuthenticated, (req, res) => {
     getCurrentPrice((price) => {
-        const isAdmin = req.session.token.id === 27 || req.session.token.id === 33 || req.session.token.id === 3 || req.session.token.id === 2;
+        const isAdmin = req.session.token.id === 27 || req.session.token.id === 33 //|| req.session.token.id === 3 || req.session.token.id === 2;
         res.render('index', {
             gamePrice: price,
             isAdmin: isAdmin
