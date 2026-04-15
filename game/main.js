@@ -790,40 +790,7 @@ class Game {
     }
 
     handleCanvasClick(x, y, e) {
-        if (this.started && this.gameRunning && !this.selectedTower) {
-            const clickedTower = this.findTowerAtPoint(x, y);
-            this.setSelectedPlacedTower(clickedTower);
-            if (clickedTower) return;
-        }
-
-        // Tower placement on the map 
-        if (this.selectedTower && this.started && this.gameRunning) {
-            const def = TOWER_TYPES[this.selectedTower];
-
-            // Check whether the player can afford the tower
-            if (this.money < def.cost) {
-                console.log(`Not enough money to place ${def.name} (need ${def.cost}, have ${this.money})`);
-                return;
-            }
-
-            //  Check whether the placement point overlaps the track
-            const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
-            if (this.mapManager.isPointOnTrack(x, y, tolerance)) {
-                console.log('Cannot place tower on the track!');
-                return;
-            }
-
-            // Place the tower and deduct cost
-            const placedTower = new Tower(x, y, this.selectedTower);
-            this.placedTowers.push(placedTower);
-            this.setSelectedPlacedTower(placedTower);
-            this.money -= def.cost;
-            this.updateGameUI();
-            console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
-            return;
-        }
-
-        // Check if wave start button was clicked
+        // Make it so towers can't be placed near the wave start button
         if (this.pointInRect(x, y, this.uiRects.waveStart)) {
             console.log("Wave start button clicked!");
 
@@ -841,6 +808,38 @@ class Game {
             // Enable spawning
             this.waveStartAllowed = true;
 
+            return;
+        }
+
+        if (this.started && this.gameRunning && !this.selectedTower) {
+            const clickedTower = this.findTowerAtPoint(x, y);
+            this.setSelectedPlacedTower(clickedTower);
+            if (clickedTower) return;
+        }
+
+        // Tower placement on the map 
+        if (this.selectedTower && this.started && this.gameRunning) {
+            const def = TOWER_TYPES[this.selectedTower];
+
+            // Check whether the player can afford the tower
+            if (this.money < def.cost) {
+                console.log(`Not enough money to place ${def.name} (need ${def.cost}, have ${this.money})`);
+                return;
+            }
+
+            const placementIssue = this.getTowerPlacementIssue(x, y, def);
+            if (placementIssue) {
+                console.log(`Cannot place tower: ${placementIssue}`);
+                return;
+            }
+
+            // Place the tower and deduct cost
+            const placedTower = new Tower(x, y, this.selectedTower);
+            this.placedTowers.push(placedTower);
+            this.setSelectedPlacedTower(placedTower);
+            this.money -= def.cost;
+            this.updateGameUI();
+            console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
             return;
         }
 
@@ -1052,10 +1051,9 @@ class Game {
         const { ctx } = this;
         const def = TOWER_TYPES[this.selectedTower];
 
-        const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
-        const onTrack = this.mapManager.isPointOnTrack(this.mouseX, this.mouseY, tolerance);
+        const placementIssue = this.getTowerPlacementIssue(this.mouseX, this.mouseY, def);
         const canAfford = this.money >= def.cost;
-        const valid = !onTrack && canAfford;
+        const valid = !placementIssue && canAfford;
 
         const px = this.mouseX - def.width / 2;
         const py = this.mouseY - def.height / 2;
@@ -1077,7 +1075,7 @@ class Game {
         // Tooltip
         const label = !canAfford
             ? `Need $${def.cost} (have $${this.money})`
-            : onTrack ? 'Cannot place on track' : `Place ${def.name} ($${def.cost})`;
+            : placementIssue ? `Cannot place: ${placementIssue}` : `Place ${def.name} ($${def.cost})`;
         ctx.fillStyle = valid ? 'rgba(0,0,0,0.7)' : 'rgba(180,0,0,0.7)';
         const tw = ctx.measureText(label).width + 12;
         ctx.fillRect(this.mouseX + 14, this.mouseY - 22, tw, 20);
@@ -1196,6 +1194,78 @@ class Game {
     pointInRect(x, y, rect) {
         if (!rect) return false;
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+
+    rectsOverlap(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    inflateRect(rect, amount) {
+        if (!rect) return null;
+        return {
+            x: rect.x - amount,
+            y: rect.y - amount,
+            w: rect.w + amount * 2,
+            h: rect.h + amount * 2
+        };
+    }
+
+    getTowerPlacementRect(x, y, def) {
+        return {
+            x: x - def.width / 2,
+            y: y - def.height / 2,
+            w: def.width,
+            h: def.height
+        };
+    }
+
+    getProtectedPlacementRects() {
+        const protectedRects = [];
+        if (this.uiRects.waveStart) protectedRects.push(this.uiRects.waveStart);
+        return protectedRects;
+    }
+
+    getTowerPlacementIssue(x, y, def) {
+        const placementRect = this.getTowerPlacementRect(x, y, def);
+
+        // Keep the full tower on the canvas.
+        if (
+            placementRect.x < 0 ||
+            placementRect.y < 0 ||
+            placementRect.x + placementRect.w > this.width ||
+            placementRect.y + placementRect.h > this.height
+        ) {
+            return 'outside map bounds';
+        }
+
+        const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
+        if (this.mapManager.isPointOnTrack(x, y, tolerance)) {
+            return 'on the track';
+        }
+
+        const towerSpacing = 2;
+        const testRect = this.inflateRect(placementRect, towerSpacing / 2);
+        for (const tower of this.placedTowers) {
+            if (!tower) continue;
+            const towerRect = {
+                x: tower.x,
+                y: tower.y,
+                w: tower.width,
+                h: tower.height
+            };
+            if (this.rectsOverlap(testRect, towerRect)) {
+                return 'overlapping another tower';
+            }
+        }
+
+        const buttonSafetyPadding = 14;
+        for (const uiRect of this.getProtectedPlacementRects()) {
+            if (this.rectsOverlap(placementRect, this.inflateRect(uiRect, buttonSafetyPadding))) {
+                return 'too close to the start button';
+            }
+        }
+
+        return null;
     }
 
     update(deltaTime) {
