@@ -362,7 +362,7 @@ const TOWER_UPGRADES = {
             tier: 6,
             name: 'Maximum Overdrive',
             description: 'Im shifting into MAXIMUM OVERDRIVE! Increased fire rate and range.',
-            cost: 50,
+            cost: 10000,
             image: '/img/planktonOverdrive.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.6, 70);

@@ -19,6 +19,12 @@ function hidePayment() {
     }
 }
 
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster']);
+
+function isTowerShopAvailable(key) {
+    return AVAILABLE_TOWER_SHOP_KEYS.has(key);
+}
+
 async function post(path, body) {
     const res = await fetch(path, {
         method: 'POST',
@@ -855,6 +861,7 @@ class Game {
      * Called by the HTML shop panel buttons.
      */
     selectTower(key) {
+        if (!isTowerShopAvailable(key)) return;
         this.selectedTower = (this.selectedTower === key) ? null : key;
         if (this.selectedTower) {
             this.setSelectedPlacedTower(null);
@@ -894,10 +901,14 @@ class Game {
 
         Object.entries(TOWER_TYPES).forEach(([key, def]) => {
             const towerCost = Number.isFinite(def.cost) ? def.cost : 0;
+            const isAvailable = isTowerShopAvailable(key);
             const card = document.createElement('div');
             card.className = 'tower-card';
+            card.classList.toggle('coming-soon', !isAvailable);
             card.id = `towerBtn-${key}`;
-            card.title = `Select ${def.name} to buy for placement`;
+            card.title = isAvailable
+                ? `Select ${def.name} to buy for placement`
+                : 'Coming soon';
             card.addEventListener('click', () => this.selectTower(key));
             
             const iconDiv = document.createElement('div');
@@ -924,7 +935,7 @@ class Game {
             
             const actionDiv = document.createElement('div');
             actionDiv.className = 'tower-card-action';
-            actionDiv.textContent = 'Buy tower';
+            actionDiv.textContent = isAvailable ? 'Buy tower' : 'Coming soon';
             card.appendChild(actionDiv);
             
             const costDiv = document.createElement('div');
@@ -957,6 +968,10 @@ class Game {
             cards.dataset.rendered = 'true';
         }
 
+        if (this.selectedTower && !isTowerShopAvailable(this.selectedTower)) {
+            this.selectedTower = null;
+        }
+
         const selectedDef = this.selectedTower ? TOWER_TYPES[this.selectedTower] : null;
         if (hint) {
             const selectedCost = selectedDef && Number.isFinite(selectedDef.cost) ? selectedDef.cost : 0;
@@ -970,13 +985,22 @@ class Game {
             if (!btn) return;
             const def = TOWER_TYPES[key];
             const towerCost = Number.isFinite(def.cost) ? def.cost : 0;
-            const canAfford = this.money >= towerCost;
+            const isAvailable = isTowerShopAvailable(key);
+            const canAfford = isAvailable && this.money >= towerCost;
             btn.classList.toggle('selected', this.selectedTower === key);
             btn.classList.toggle('unaffordable', !canAfford);
+            btn.classList.toggle('coming-soon', !isAvailable);
+            btn.title = isAvailable
+                ? `Select ${def.name} to buy for placement`
+                : 'Coming soon';
 
             const action = btn.querySelector('.tower-card-action');
             if (action) {
-                action.textContent = this.selectedTower === key ? 'Selected' : 'Buy tower';
+                action.textContent = !isAvailable
+                    ? 'Coming soon'
+                    : this.selectedTower === key
+                        ? 'Selected'
+                        : 'Buy tower';
             }
         });
     }
@@ -1005,7 +1029,8 @@ class Game {
             const def = TOWER_TYPES[key];
             const btnX = shopX + i * (btnW + gap);
             const isSelected = this.selectedTower === key;
-            const canAfford = this.money >= def.cost;
+            const isAvailable = isTowerShopAvailable(key);
+            const canAfford = isAvailable && this.money >= def.cost;
 
             // Button background
             ctx.fillStyle = isSelected
@@ -1032,7 +1057,7 @@ class Game {
             // Cost label
             ctx.fillStyle = canAfford ? '#FFD700' : '#666666';
             ctx.font = '11px Arial';
-            ctx.fillText('$' + def.cost, btnX + btnW / 2, shopY + 58);
+            ctx.fillText(isAvailable ? ('$' + def.cost) : 'Soon', btnX + btnW / 2, shopY + 58);
 
             this.towerShopRects.push({ x: btnX, y: shopY, w: btnW, h: btnH, key });
         });
@@ -1050,6 +1075,7 @@ class Game {
         if (!this.selectedTower) return;
         const { ctx } = this;
         const def = TOWER_TYPES[this.selectedTower];
+        if (!isTowerShopAvailable(this.selectedTower)) return;
 
         const placementIssue = this.getTowerPlacementIssue(this.mouseX, this.mouseY, def);
         const canAfford = this.money >= def.cost;

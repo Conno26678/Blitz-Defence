@@ -867,6 +867,33 @@ label.checkbox {
     background: rgba(48, 48, 48, 0.96);
 }
 
+.tower-card.coming-soon {
+    opacity: 0.38;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+.tower-card.coming-soon:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(30, 30, 30, 0.92);
+    box-shadow: none;
+}
+
+.tower-card.coming-soon .tower-card-icon {
+    filter: grayscale(1) brightness(0.8);
+}
+
+.tower-card.coming-soon .tower-card-name,
+.tower-card.coming-soon .tower-card-stats,
+.tower-card.coming-soon .tower-card-cost {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.tower-card.coming-soon .tower-card-action {
+    color: rgba(255, 184, 107, 0.95);
+}
+
 .tower-card.selected {
     border-color: #FFD700;
     background: rgba(255, 215, 0, 0.12);
