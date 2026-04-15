@@ -19,6 +19,12 @@ function hidePayment() {
     }
 }
 
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster']);
+
+function isTowerShopAvailable(key) {
+    return AVAILABLE_TOWER_SHOP_KEYS.has(key);
+}
+
 async function post(path, body) {
     const res = await fetch(path, {
         method: 'POST',
@@ -194,6 +200,7 @@ class Game {
         this.selectedTower = null;       // Key from TOWER_TYPES currently selected in shop
         this.selectedPlacedTower = null; // Currently selected placed tower for upgrades
         this.towerShopRects = [];        // Clickable rects for the bottom shop panel
+        this.storeOpen = false;          // Right-side store dock visibility
 
         this.renderer = new GameRenderer(this);
 
@@ -453,6 +460,32 @@ class Game {
         this.updateTowerUpgradeUI();
     }
 
+    updateStoreDockUI() {
+        const dock = document.getElementById('storeDock');
+        const toggleBtn = document.getElementById('storeToggleBtn');
+        if (!dock || !toggleBtn) return;
+
+        const shouldShow = this.started && this.gameRunning;
+        dock.classList.toggle('hidden', !shouldShow);
+
+        if (!shouldShow) {
+            this.storeOpen = false;
+            dock.classList.remove('open');
+            dock.classList.add('closed');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
+        dock.classList.toggle('open', this.storeOpen);
+        dock.classList.toggle('closed', !this.storeOpen);
+        toggleBtn.setAttribute('aria-expanded', this.storeOpen ? 'true' : 'false');
+    }
+
+    toggleStoreDock(forceOpen) {
+        this.storeOpen = typeof forceOpen === 'boolean' ? forceOpen : !this.storeOpen;
+        this.updateStoreDockUI();
+    }
+
     findTowerAtPoint(x, y) {
         for (let i = this.placedTowers.length - 1; i >= 0; i--) {
             const tower = this.placedTowers[i];
@@ -479,14 +512,14 @@ class Game {
         const button = document.getElementById('towerUpgradeBtn');
         if (!panel || !title || !body || !button) return;
 
+        this.updateStoreDockUI();
+
         if (!this.started || !this.gameRunning) {
-            panel.classList.add('hidden');
             return;
         }
 
-        panel.classList.remove('hidden');
-
         if (!this.selectedPlacedTower) {
+            panel.classList.add('inactive');
             title.textContent = 'No Tower Selected';
             body.innerHTML = 'Click a placed tower to view upgrades.';
             button.textContent = 'Upgrade';
@@ -494,6 +527,8 @@ class Game {
             button.dataset.upgradeId = '';
             return;
         }
+
+        panel.classList.remove('inactive');
 
         const tower = this.selectedPlacedTower;
         const nextUpgrades = tower.getAvailableUpgrades ? tower.getAvailableUpgrades() : [];
@@ -738,6 +773,13 @@ class Game {
             });
         }
 
+        const storeToggleBtn = document.getElementById('storeToggleBtn');
+        if (storeToggleBtn) {
+            storeToggleBtn.addEventListener('click', () => {
+                this.toggleStoreDock();
+            });
+        }
+
 
         // Player preview click
         const playerPreview = document.getElementById('playerPreview');
@@ -751,40 +793,7 @@ class Game {
     }
 
     handleCanvasClick(x, y, e) {
-        if (this.started && this.gameRunning && !this.selectedTower) {
-            const clickedTower = this.findTowerAtPoint(x, y);
-            this.setSelectedPlacedTower(clickedTower);
-            if (clickedTower) return;
-        }
-
-        // Tower placement on the map 
-        if (this.selectedTower && this.started && this.gameRunning) {
-            const def = TOWER_TYPES[this.selectedTower];
-
-            // Check whether the player can afford the tower
-            if (this.money < def.cost) {
-                console.log(`Not enough money to place ${def.name} (need ${def.cost}, have ${this.money})`);
-                return;
-            }
-
-            //  Check whether the placement point overlaps the track
-            const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
-            if (this.mapManager.isPointOnTrack(x, y, tolerance)) {
-                console.log('Cannot place tower on the track!');
-                return;
-            }
-
-            // Place the tower and deduct cost
-            const placedTower = new Tower(x, y, this.selectedTower);
-            this.placedTowers.push(placedTower);
-            this.setSelectedPlacedTower(placedTower);
-            this.money -= def.cost;
-            this.updateGameUI();
-            console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
-            return;
-        }
-
-        // Check if wave start button was clicked
+        // Make it so towers can't be placed near the wave start button
         if (this.pointInRect(x, y, this.uiRects.waveStart)) {
             console.log("Wave start button clicked!");
 
@@ -805,6 +814,38 @@ class Game {
             return;
         }
 
+        if (this.started && this.gameRunning && !this.selectedTower) {
+            const clickedTower = this.findTowerAtPoint(x, y);
+            this.setSelectedPlacedTower(clickedTower);
+            if (clickedTower) return;
+        }
+
+        // Tower placement on the map 
+        if (this.selectedTower && this.started && this.gameRunning) {
+            const def = TOWER_TYPES[this.selectedTower];
+
+            // Check whether the player can afford the tower
+            if (this.money < def.cost) {
+                console.log(`Not enough money to place ${def.name} (need ${def.cost}, have ${this.money})`);
+                return;
+            }
+
+            const placementIssue = this.getTowerPlacementIssue(x, y, def);
+            if (placementIssue) {
+                console.log(`Cannot place tower: ${placementIssue}`);
+                return;
+            }
+
+            // Place the tower and deduct cost
+            const placedTower = new Tower(x, y, this.selectedTower);
+            this.placedTowers.push(placedTower);
+            this.setSelectedPlacedTower(placedTower);
+            this.money -= def.cost;
+            this.updateGameUI();
+            console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
+            return;
+        }
+
         // Handle other canvas clicks here if needed
         console.log(`Canvas clicked at: ${x}, ${y}`);
     }
@@ -817,6 +858,7 @@ class Game {
      * Called by the HTML shop panel buttons.
      */
     selectTower(key) {
+        if (!isTowerShopAvailable(key)) return;
         this.selectedTower = (this.selectedTower === key) ? null : key;
         if (this.selectedTower) {
             this.setSelectedPlacedTower(null);
@@ -856,10 +898,14 @@ class Game {
 
         Object.entries(TOWER_TYPES).forEach(([key, def]) => {
             const towerCost = Number.isFinite(def.cost) ? def.cost : 0;
+            const isAvailable = isTowerShopAvailable(key);
             const card = document.createElement('div');
             card.className = 'tower-card';
+            card.classList.toggle('coming-soon', !isAvailable);
             card.id = `towerBtn-${key}`;
-            card.title = `Select ${def.name} to buy for placement`;
+            card.title = isAvailable
+                ? `Select ${def.name} to buy for placement`
+                : 'Coming soon';
             card.addEventListener('click', () => this.selectTower(key));
 
             const iconDiv = document.createElement('div');
@@ -886,7 +932,7 @@ class Game {
 
             const actionDiv = document.createElement('div');
             actionDiv.className = 'tower-card-action';
-            actionDiv.textContent = 'Buy tower';
+            actionDiv.textContent = isAvailable ? 'Buy tower' : 'Coming soon';
             card.appendChild(actionDiv);
 
             const costDiv = document.createElement('div');
@@ -908,16 +954,19 @@ class Game {
 
         if (!shop || !cards) return;
 
+        this.updateStoreDockUI();
+
         if (!this.started || !this.gameRunning) {
-            shop.classList.add('hidden');
             return;
         }
-
-        shop.classList.remove('hidden');
 
         if (!cards.dataset.rendered) {
             this.buildTowerShopCards(cards);
             cards.dataset.rendered = 'true';
+        }
+
+        if (this.selectedTower && !isTowerShopAvailable(this.selectedTower)) {
+            this.selectedTower = null;
         }
 
         const selectedDef = this.selectedTower ? TOWER_TYPES[this.selectedTower] : null;
@@ -933,13 +982,22 @@ class Game {
             if (!btn) return;
             const def = TOWER_TYPES[key];
             const towerCost = Number.isFinite(def.cost) ? def.cost : 0;
-            const canAfford = this.money >= towerCost;
+            const isAvailable = isTowerShopAvailable(key);
+            const canAfford = isAvailable && this.money >= towerCost;
             btn.classList.toggle('selected', this.selectedTower === key);
             btn.classList.toggle('unaffordable', !canAfford);
+            btn.classList.toggle('coming-soon', !isAvailable);
+            btn.title = isAvailable
+                ? `Select ${def.name} to buy for placement`
+                : 'Coming soon';
 
             const action = btn.querySelector('.tower-card-action');
             if (action) {
-                action.textContent = this.selectedTower === key ? 'Selected' : 'Buy tower';
+                action.textContent = !isAvailable
+                    ? 'Coming soon'
+                    : this.selectedTower === key
+                        ? 'Selected'
+                        : 'Buy tower';
             }
         });
     }
@@ -968,7 +1026,8 @@ class Game {
             const def = TOWER_TYPES[key];
             const btnX = shopX + i * (btnW + gap);
             const isSelected = this.selectedTower === key;
-            const canAfford = this.money >= def.cost;
+            const isAvailable = isTowerShopAvailable(key);
+            const canAfford = isAvailable && this.money >= def.cost;
 
             // Button background
             ctx.fillStyle = isSelected
@@ -995,7 +1054,7 @@ class Game {
             // Cost label
             ctx.fillStyle = canAfford ? '#FFD700' : '#666666';
             ctx.font = '11px Arial';
-            ctx.fillText('$' + def.cost, btnX + btnW / 2, shopY + 58);
+            ctx.fillText(isAvailable ? ('$' + def.cost) : 'Soon', btnX + btnW / 2, shopY + 58);
 
             this.towerShopRects.push({ x: btnX, y: shopY, w: btnW, h: btnH, key });
         });
@@ -1013,11 +1072,11 @@ class Game {
         if (!this.selectedTower) return;
         const { ctx } = this;
         const def = TOWER_TYPES[this.selectedTower];
+        if (!isTowerShopAvailable(this.selectedTower)) return;
 
-        const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
-        const onTrack = this.mapManager.isPointOnTrack(this.mouseX, this.mouseY, tolerance);
+        const placementIssue = this.getTowerPlacementIssue(this.mouseX, this.mouseY, def);
         const canAfford = this.money >= def.cost;
-        const valid = !onTrack && canAfford;
+        const valid = !placementIssue && canAfford;
 
         const px = this.mouseX - def.width / 2;
         const py = this.mouseY - def.height / 2;
@@ -1039,7 +1098,7 @@ class Game {
         // Tooltip
         const label = !canAfford
             ? `Need $${def.cost} (have $${this.money})`
-            : onTrack ? 'Cannot place on track' : `Place ${def.name} ($${def.cost})`;
+            : placementIssue ? `Cannot place: ${placementIssue}` : `Place ${def.name} ($${def.cost})`;
         ctx.fillStyle = valid ? 'rgba(0,0,0,0.7)' : 'rgba(180,0,0,0.7)';
         const tw = ctx.measureText(label).width + 12;
         ctx.fillRect(this.mouseX + 14, this.mouseY - 22, tw, 20);
@@ -1060,12 +1119,10 @@ class Game {
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
+        this.storeOpen = false;
 
-        // Hide the HTML tower shop when returning to menu
-        const _ts = document.getElementById('towerShop');
-        if (_ts) _ts.classList.add('hidden');
-        const _tu = document.getElementById('towerUpgradePanel');
-        if (_tu) _tu.classList.add('hidden');
+        // Hide the right-side store dock when returning to menu
+        this.updateStoreDockUI();
 
         // Reset payment
         // hasPaid = false;
@@ -1103,6 +1160,7 @@ class Game {
         // Start client game
         this.started = true;
         this.gameRunning = true;
+        this.storeOpen = false;
         this.hideAllMenus();
         this.restart(true);
     }
@@ -1145,6 +1203,78 @@ class Game {
     pointInRect(x, y, rect) {
         if (!rect) return false;
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+
+    rectsOverlap(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    inflateRect(rect, amount) {
+        if (!rect) return null;
+        return {
+            x: rect.x - amount,
+            y: rect.y - amount,
+            w: rect.w + amount * 2,
+            h: rect.h + amount * 2
+        };
+    }
+
+    getTowerPlacementRect(x, y, def) {
+        return {
+            x: x - def.width / 2,
+            y: y - def.height / 2,
+            w: def.width,
+            h: def.height
+        };
+    }
+
+    getProtectedPlacementRects() {
+        const protectedRects = [];
+        if (this.uiRects.waveStart) protectedRects.push(this.uiRects.waveStart);
+        return protectedRects;
+    }
+
+    getTowerPlacementIssue(x, y, def) {
+        const placementRect = this.getTowerPlacementRect(x, y, def);
+
+        // Keep the full tower on the canvas.
+        if (
+            placementRect.x < 0 ||
+            placementRect.y < 0 ||
+            placementRect.x + placementRect.w > this.width ||
+            placementRect.y + placementRect.h > this.height
+        ) {
+            return 'outside map bounds';
+        }
+
+        const tolerance = 5 + Math.max(def.width, def.height) / 2 + 5;
+        if (this.mapManager.isPointOnTrack(x, y, tolerance)) {
+            return 'on the track';
+        }
+
+        const towerSpacing = 2;
+        const testRect = this.inflateRect(placementRect, towerSpacing / 2);
+        for (const tower of this.placedTowers) {
+            if (!tower) continue;
+            const towerRect = {
+                x: tower.x,
+                y: tower.y,
+                w: tower.width,
+                h: tower.height
+            };
+            if (this.rectsOverlap(testRect, towerRect)) {
+                return 'overlapping another tower';
+            }
+        }
+
+        const buttonSafetyPadding = 14;
+        for (const uiRect of this.getProtectedPlacementRects()) {
+            if (this.rectsOverlap(placementRect, this.inflateRect(uiRect, buttonSafetyPadding))) {
+                return 'too close to the start button';
+            }
+        }
+
+        return null;
     }
 
     update(deltaTime) {
@@ -2091,6 +2221,7 @@ class Game {
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
+        this.storeOpen = false;
         this.exp = 0;
         this.level = 1;
         this.money = 500;
@@ -2134,25 +2265,10 @@ class Game {
 
         document.getElementById('gameOver').classList.add('hidden');
 
-        // Show / hide the HTML tower shop panel
-        const _towerShop = document.getElementById('towerShop');
-        if (_towerShop) {
-            if (startImmediately) {
-                _towerShop.classList.remove('hidden');
-                this.updateTowerShopUI();
-            } else {
-                _towerShop.classList.add('hidden');
-            }
-        }
-
-        const _towerUpgrade = document.getElementById('towerUpgradePanel');
-        if (_towerUpgrade) {
-            if (startImmediately) {
-                _towerUpgrade.classList.remove('hidden');
-                this.updateTowerUpgradeUI();
-            } else {
-                _towerUpgrade.classList.add('hidden');
-            }
+        this.updateStoreDockUI();
+        if (startImmediately) {
+            this.updateTowerShopUI();
+            this.updateTowerUpgradeUI();
         }
     }
 
