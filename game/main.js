@@ -108,7 +108,7 @@ class Game {
         this.level = 1;
         this.sheild = 250;
         this.maxSheild = 250;
-        this.money = 500;
+        this.money = 99999999999;
         this.expToNextLevel = 100;
         this.showLevelUp = false;
 
@@ -2224,7 +2224,7 @@ class Game {
         this.storeOpen = false;
         this.exp = 0;
         this.level = 1;
-        this.money = 500;
+        this.money = 99999999999;
         this.expToNextLevel = 100;
         this.waveNumber = 1;
         this.waveRequirement = 300;
