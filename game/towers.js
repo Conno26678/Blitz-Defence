@@ -401,11 +401,11 @@ const TOWER_UPGRADES = {
             id: 'swiftSkills',
             tier: 1,
             name: 'Swift Skills',
-            description: 'Improved hacking skills allowing for faster hacking.',
+            description: 'Improved hacking skills for a stronger payout at round start.',
             cost: 1325,
             image: '/img/redditMod.png',
             apply: (tower) => {
-                tower.hackInterval = Math.max(250, Math.round((tower.hackInterval || 2500) * 0.8));
+                tower.hackRewardMultiplier = (tower.hackRewardMultiplier || 1) + 0.35;
             }
         },
         {
@@ -423,11 +423,10 @@ const TOWER_UPGRADES = {
             id: 'malwareExpert',
             tier: 3,
             name: 'Malware Expert',
-            description: 'Advanced malware  allow for more sophisticated attacks and double the payout per hack.',
+            description: 'Advanced malware allows deeper exploits and doubles each round-start payout.',
             cost: 15000,
             image: '/img/redditMod.png',
             apply: (tower) => {
-                tower.hackInterval = Math.max(200, Math.round((tower.hackInterval || 2500) * 0.85));
                 tower.hackRewardMultiplier = (tower.hackRewardMultiplier || 1) * 2;
             }
         },
@@ -435,11 +434,10 @@ const TOWER_UPGRADES = {
             id: 'systemOverride',
             tier: 4,
             name: 'System Override',
-            description: 'Time to make the big bucks! Override system controls to generate more money and triple the amount per hack.',
+            description: 'Time to make the big bucks! Override controls to triple each round-start payout.',
             cost: 63500,
             image: '/img/redditMod.png',
             apply: (tower) => {
-                tower.hackInterval = Math.max(160, Math.round((tower.hackInterval || 2500) * 0.8));
                 tower.hackRewardMultiplier = (tower.hackRewardMultiplier || 1) * 3;
             }
         },
@@ -773,6 +771,7 @@ class Tower {
         this.appliedUpgradeIds = [];
         this.currentUpgradeImage = def.image || null;
         this.totalSpent = Number.isFinite(def.cost) ? def.cost : 0;
+        this.totalHackedMoney = 0;
 
         this.fireCooldown = 0;
         this.hackCooldown = this.hackInterval;
