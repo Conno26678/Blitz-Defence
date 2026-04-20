@@ -60,7 +60,7 @@ db.run(`CREATE TABLE IF NOT EXISTS player_customization (
 
 //constants
 const app = express();
-const PORT = process.env.PORT || 3500;
+const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'your_secret_key';
 const AUTH_URL = process.env.AUTH_URL || 'http://localhost:420/oauth';
 const THIS_URL = process.env.THIS_URL || `http://localhost:${PORT}`;
@@ -87,7 +87,7 @@ function isAuthenticated(req, res, next) {
 };
 
 function isAdmin(req, res, next) {
-    if (req.session.user && (req.session.token.id === 27 || req.session.token.id === 33 //|| req.session.token.id === 3 || req.session.token.id === 2
+    if (req.session.user && (req.session.token.id === 27 || req.session.token.id === 33 || req.session.token.id === 3 || req.session.token.id === 2
     )) {
         next();
     } else {
@@ -112,7 +112,7 @@ app.use(express.static(path.join(__dirname)));
 // Route for the game
 app.get('/', isAuthenticated, (req, res) => {
     getCurrentPrice((price) => {
-        const isAdmin = req.session.token.id === 27 || req.session.token.id === 33 //|| req.session.token.id === 3 || req.session.token.id === 2;
+        const isAdmin = req.session.token.id === 27 || req.session.token.id === 33 || req.session.token.id === 3 || req.session.token.id === 2;
         res.render('index', {
             gamePrice: price,
             isAdmin: isAdmin

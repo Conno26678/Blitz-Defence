@@ -546,7 +546,7 @@ class MapManager {
 
     // Get current map name for display
     getCurrentMapName() {
-        const mapNames = ['3 Ways', 'Spirals', '4Corners', 'Mirrored', 'Cricut', 'Eye Spy', '???', 'Vortex', 'Empty Space'];
+        const mapNames = ['3 Ways', 'Spiral', '4Corners', 'Mirrored', 'Cricut', 'Eye Spy', '???', 'Vortex', 'Empty Space'];
         return mapNames[this.currentMapIndex];
     }
 
