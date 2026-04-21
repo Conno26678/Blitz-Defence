@@ -33,7 +33,7 @@ const TOWER_TYPES = {
         cost: 300,
         damage: 5,
         range: 1000,
-        fireRate: 3500,
+        fireRate: 3000,
         color: '#2196F3',
         projectileCount: 1, 
         projectileSpeed: 0.8,
@@ -72,13 +72,13 @@ const TOWER_TYPES = {
         width: 30,
         height: 30,
         seeHidden: true,
-        summonSpeed: 2500,
+        summonSpeed: 4000,
         summonCount: 3,
         color: '#795548',
         image: '/img/chickenJockey.png'
     },
-    boomer: {
-        name: 'Boomer',
+    bomber: {
+        name: 'Bomber',
         cost: 500,
         damage: 3,
         range: 65,
@@ -92,7 +92,8 @@ const TOWER_TYPES = {
         color: '#f44336',
         width: 30,
         height: 30,
-        image: '/img/boomer.png'
+        image: '/img/bomb.png',
+        projectileLife: 2
     },
     generator: {
         name: 'Shield Generator',
@@ -123,6 +124,26 @@ const TOWER_TYPES = {
         cost: 500,
         color: '#7c7c7cff',
         image: '/img/burst.png'
+    },
+    wizard: {
+        name: 'Wizard',
+        //placeholder
+    },
+    kid: {
+        name: 'Silly Billy',
+        cost: 175,
+        damage: 0,
+        range: 85,
+        fireRate: 900,
+        projectileCount: 1,
+        projectileSpeed: 1.15,
+        projectileLife: 1,
+        stunChance: 1,
+        stunDuration: 2000,
+        width: 30,
+        height: 30,
+        color: '#f7d36b',
+        image: '/img/sillyBilly.png'
     }
 };
 
@@ -264,7 +285,7 @@ const TOWER_UPGRADES = {
             cost: 2450,
             image: '/img/miku.png',
             apply: (tower) => {
-                tower.projectileCount += 2;
+                tower.refractionSplitCount = 2;
             }
         },
         {
@@ -278,6 +299,7 @@ const TOWER_UPGRADES = {
                 tower.damage += 8;
                 addPierce(tower, 5);
                 scaleFireRate(tower, 1.2, 120);
+                tower.railBeamMode = 'laser';
             }
         },
         {
@@ -293,6 +315,7 @@ const TOWER_UPGRADES = {
                 tower.pierce = Infinity;
                 tower.range = Infinity;
                 tower.seeHidden = true;
+                tower.railBeamMode = 'miku';
             }
         }
     ],
@@ -528,14 +551,14 @@ const TOWER_UPGRADES = {
             }
         }
     ],
-    boomer: [
+    bomber: [
         {
             id: 'heavyPayload',
             tier: 1,
             name: 'Heavy Payload',
             description: 'Big boom hehe. Increased area and damage.',
             cost: 650,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.damage += 2;
                 tower.explosionArea = (tower.explosionArea || 0) + 15;
@@ -547,7 +570,7 @@ const TOWER_UPGRADES = {
             name: 'Laser Guidance',
             description: 'A laser guidance system that allows for more accurate range.',
             cost: 1500,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.range += 20;
                 tower.projectileSpeed += 0.2;
@@ -559,7 +582,7 @@ const TOWER_UPGRADES = {
             name: 'Fast Reload',
             description: 'Reloads quicker for more destruction faster.',
             cost: 4000,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.8, 90);
             }
@@ -570,7 +593,7 @@ const TOWER_UPGRADES = {
             name: 'Aerodynamic Shells',
             description: 'Improved aerodynamics for faster firing and piercing.',
             cost: 9800,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.85, 80);
                 addPierce(tower, 2);
@@ -583,7 +606,7 @@ const TOWER_UPGRADES = {
             name: 'Cluster Bomb',
             description: 'Fire a wave of 5 rockets with increased damage.',
             cost: 12000,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.projectileCount = Math.max(tower.projectileCount, 5);
                 tower.damage += 3;
@@ -595,7 +618,7 @@ const TOWER_UPGRADES = {
             name: 'Cluster F***',
             description: 'Youre gonna want to get in a vault for this one! Whenever a bomb explodes release a ring of smaller bombs around the area. ',
             cost: 50,
-            image: '/img/vaultboy.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.clusterOnExplosion = true;
                 tower.clusterCount = (tower.clusterCount || 0) + 8;
@@ -766,6 +789,7 @@ class Tower {
         this.summonBossChance = def.summonBossChance || 0;
 
         this.stunChance = def.stunChance || 0;
+        this.stunDuration = def.stunDuration || 0;
 
         this.level = 1;
         this.appliedUpgradeIds = [];
@@ -903,6 +927,7 @@ class Tower {
             bullet.sourceTower = this;
             bullet.damageReinforced = !!this.damageReinforced;
             bullet.stunChance = this.stunChance || 0;
+            bullet.stunDuration = this.stunDuration || 0;
             bullet.clusterOnExplosion = !!this.clusterOnExplosion;
             bullet.clusterCount = this.clusterCount || 0;
 
@@ -910,12 +935,98 @@ class Tower {
                 bullet.lifeRemaining = this.projectileLife * 1000;
             }
 
-            bullet.render = function(ctx) {
-                ctx.fillStyle = this.towerColor || '#ffffff';
-                ctx.beginPath();
-                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
-                ctx.fill();
-            };
+            const isRailLaser = this.type === 'railgun' && (this.railBeamMode === 'laser' || this.railBeamMode === 'miku');
+            if (isRailLaser) {
+                const isMikuBeam = this.railBeamMode === 'miku';
+                const beamThickness = isMikuBeam ? 11 : 6;
+                const beamLength = isMikuBeam ? 200 : 120;
+                const beamLife = isMikuBeam ? 650 : 260;
+
+                bullet.width = beamThickness;
+                bullet.height = beamThickness;
+                bullet.lifeRemaining = Math.max(bullet.lifeRemaining || 0, beamLife);
+
+                bullet.render = function(ctx) {
+                    const centerX = this.x + this.width / 2;
+                    const centerY = this.y + this.height / 2;
+                    const velocityLength = Math.sqrt(this.vx * this.vx + this.vy * this.vy) || 1;
+                    const dirX = this.vx / velocityLength;
+                    const dirY = this.vy / velocityLength;
+                    const tailX = centerX - dirX * beamLength;
+                    const tailY = centerY - dirY * beamLength;
+
+                    ctx.save();
+                    ctx.lineCap = 'round';
+
+                    ctx.strokeStyle = isMikuBeam
+                        ? 'rgba(0, 255, 255, 0.35)'
+                        : 'rgba(33, 150, 243, 0.35)';
+                    ctx.lineWidth = beamThickness * 1.9;
+                    ctx.beginPath();
+                    ctx.moveTo(tailX, tailY);
+                    ctx.lineTo(centerX, centerY);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = isMikuBeam ? '#7cf7ff' : '#a8d7ff';
+                    ctx.lineWidth = beamThickness;
+                    ctx.beginPath();
+                    ctx.moveTo(tailX, tailY);
+                    ctx.lineTo(centerX, centerY);
+                    ctx.stroke();
+
+                    ctx.restore();
+                };
+            } else if (this.type === 'kid') {
+                bullet.width = 12;
+                bullet.height = 12;
+                bullet.render = function(ctx) {
+                    const centerX = this.x + this.width / 2;
+                    const centerY = this.y + this.height / 2;
+                    const angle = Math.atan2(this.vy || 0, this.vx || 1);
+
+                    ctx.save();
+                    ctx.translate(centerX, centerY);
+                    ctx.rotate(angle);
+
+                    ctx.strokeStyle = '#f1e6c8';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(-4, 0);
+                    ctx.lineTo(7, 0);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ff7aa2';
+                    ctx.beginPath();
+                    ctx.arc(-7, 0, 7, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(-8.5, -2.5, 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                };
+            }
+
+                // Special handling for bomber projectiles
+                if (this.type === 'bomber') {
+                    bullet.isBomb = true;
+                    bullet.explosionArea = this.explosionArea;
+                    // Override vertical velocity for arc trajectory
+                    bullet.vy = -this.projectileSpeed * 0.7; // Goes up initially
+                    bullet.gravity = 0.015; // Gravity effect for arc
+                    bullet.maxFallSpeed = this.projectileSpeed * 1.2;
+                }
+
+            if (!isRailLaser) {
+                bullet.render = function(ctx) {
+                    ctx.fillStyle = this.towerColor || '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+            }
 
             bullets.push(bullet);
         }

@@ -19,7 +19,8 @@ function hidePayment() {
     }
 }
 
-const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'overlord']);
+//Some don't work on intended or just need some touching up before being added to the shop
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'kid']);
 
 function isTowerShopAvailable(key) {
     return AVAILABLE_TOWER_SHOP_KEYS.has(key);
@@ -194,6 +195,7 @@ class Game {
             levelUp: document.getElementById('levelUp'),
             megaman: document.getElementById('megaman'),
             plankton: document.getElementById('plankton'),
+            mikuBeam: document.getElementById('mikuBeam'),
             scaryDiscord: document.getElementById('scaryDiscord'),
             flintChicken: document.getElementById('flintChicken'),
             getOffFloor: document.getElementById('getOffFloor')
@@ -650,6 +652,8 @@ class Game {
             this.playSound('flintChicken');
         } else if (tower.type === 'blaster' && applied.id === 'plankton') {
             this.playSound('plankton');
+        } else if (tower.type === 'railgun' && applied.id === 'mikubeam') {
+            this.playSound('mikuBeam');
         } else {
             this.playSound('levelUp');
         }
@@ -1965,6 +1969,11 @@ class Game {
                 if (bullet.lifeRemaining <= 0) return false;
             }
 
+                // Apply gravity to bomb projectiles for arc effect
+                if (bullet.isBomb && bullet.gravity) {
+                    bullet.vy = Math.min(bullet.vy + bullet.gravity, bullet.maxFallSpeed || 2);
+                }
+
             // Ricochet bullets off walls
             if (bullet.ricochet && bullet.isPlayer) {
                 if (bullet.x <= 0 || bullet.x + bullet.width >= this.width) {
@@ -2225,11 +2234,57 @@ class Game {
             return damage;
         };
 
+        const spawnRefractionShards = (bullet, target) => {
+            if (!bullet.fromTower || bullet.isRefractionShard) return;
+
+            const sourceTower = bullet.sourceTower;
+            if (!sourceTower || sourceTower.type !== 'railgun') return;
+
+            const splitCount = sourceTower.refractionSplitCount || 0;
+            if (splitCount <= 0) return;
+
+            const originX = target.x + (target.width || 0) / 2;
+            const originY = target.y + (target.height || 0) / 2;
+            const baseAngle = Math.atan2(bullet.vy || 0, bullet.vx || 1);
+            const splitSpread = Math.PI / 3;
+            const splitSpeed = Math.max(0.45, sourceTower.projectileSpeed || 0.8);
+            const splitDamage = Math.max(1, Math.round((bullet.damage || 1) * 0.7));
+
+            for (let s = 0; s < splitCount; s++) {
+                const t = splitCount === 1 ? 0.5 : (s / (splitCount - 1));
+                const angle = baseAngle - splitSpread / 2 + (splitSpread * t);
+
+                const shard = new Bullet(originX, originY, true);
+                shard.width = 4;
+                shard.height = 4;
+                shard.vx = Math.cos(angle) * splitSpeed;
+                shard.vy = Math.sin(angle) * splitSpeed;
+                shard.damage = splitDamage;
+                shard.pierce = 1;
+                shard.fromTower = true;
+                shard.sourceTower = sourceTower;
+                shard.towerColor = bullet.towerColor;
+                shard.damageReinforced = !!bullet.damageReinforced;
+                shard.lifeRemaining = 700;
+                shard.isRefractionShard = true;
+                shard.render = function(ctx) {
+                    ctx.fillStyle = this.towerColor || '#a8d7ff';
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+                this.bullets.push(shard);
+            }
+        };
+
         const applyTowerHitEffects = (bullet, target) => {
             if (!bullet.fromTower) return;
 
+            spawnRefractionShards(bullet, target);
+
             if (bullet.stunChance && Math.random() < bullet.stunChance) {
-                target.stunTimer = Math.max(target.stunTimer || 0, 800);
+                const stunDuration = bullet.stunDuration || 800;
+                target.stunTimer = Math.max(target.stunTimer || 0, stunDuration);
             }
 
             if (bullet.clusterOnExplosion && (bullet.clusterCount || 0) > 0) {
@@ -2263,7 +2318,63 @@ class Game {
             let hitCount = 0;
 
             // Check vs enemies
-            for (let j = this.enemies.length - 1; j >= 0; j--) {
+                // Handle bomb explosions (bomb projectiles detonate on ANY hit)
+                let shouldSkipRegularCollision = false;
+                if (bullet.isBomb && bullet.explosionArea) {
+                    let bombHit = false;
+                    const explosionX = bullet.x + bullet.width / 2;
+                    const explosionY = bullet.y + bullet.height / 2;
+                    const explosionRadius = bullet.explosionArea;
+
+                    // Apply explosion damage to all enemies within radius
+                    const applyExplosionDamage = (enemyList) => {
+                        for (let j = enemyList.length - 1; j >= 0; j--) {
+                            const enemy = enemyList[j];
+                            if (!enemy || enemy.hp <= 0) continue;
+                        
+                            const ex = enemy.x + (enemy.width || 0) / 2;
+                            const ey = enemy.y + (enemy.height || 0) / 2;
+                            const dx = ex - explosionX;
+                            const dy = ey - explosionY;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                            if (dist <= explosionRadius) {
+                                const damage = getTowerAdjustedDamage(bullet, enemy);
+                                enemy.takeDamage ? enemy.takeDamage(damage) : (enemy.hp -= damage);
+                                applyTowerHitEffects(bullet, enemy);
+                                bombHit = true;
+                            
+                                if (enemy.hp <= 0) {
+                                    this.money += enemy.worth || 0;
+                                    this.addExp(5);
+                                    if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
+                                        this.player.health++;
+                                    }
+                                    enemyList.splice(j, 1);
+                                }
+                            }
+                        }
+                    };
+
+                    // Check all enemy types within explosion radius
+                    applyExplosionDamage(this.enemies);
+                    applyExplosionDamage(this.shooters);
+                    applyExplosionDamage(this.tanks);
+                    applyExplosionDamage(this.sprinters);
+                    applyExplosionDamage(this.bosses);
+
+                    if (bombHit) {
+                        this.createExplosion(explosionX, explosionY);
+                        this.playSound('enemyHit');
+                        this.bullets.splice(i, 1);
+                        shouldSkipRegularCollision = true;
+                    }
+                }
+
+                if (shouldSkipRegularCollision) continue;
+
+                // Check vs enemies
+                for (let j = this.enemies.length - 1; j >= 0; j--) {
                 if (this.checkCollision(bullet, this.enemies[j])) {
                     const enemy = this.enemies[j];
                     const damage = getTowerAdjustedDamage(bullet, enemy);
