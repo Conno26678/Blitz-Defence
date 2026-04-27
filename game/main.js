@@ -213,7 +213,9 @@ class Game {
             genFinished: document.getElementById('genFinished'),
             nerfgun: document.getElementById('nerfgun'),
             fireworks: document.getElementById('fireworks'),
-            diceRoll: document.getElementById('diceRoll')
+            diceRoll: document.getElementById('diceRoll'),
+            war: document.getElementById('war'),
+            vats: document.getElementById('vats')
         }
 
         Object.values(this.soundEffects).forEach(sound => {
@@ -821,6 +823,8 @@ class Game {
             this.playSound('getOffFloor');
         } else if (tower.type === 'overlord' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
             this.playSound('flintChicken');
+        } else if (tower.type === 'bomber' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+            this.playSound('war');
         } else if (tower.type === 'blaster' && applied.id === 'plankton') {
             this.playSound('plankton');
         } else if (tower.type === 'railgun' && applied.id === 'mikubeam') {
@@ -1660,7 +1664,7 @@ class Game {
             const hasMaximumOverdrive = tower.appliedUpgradeIds && tower.appliedUpgradeIds.includes('plankton');
             const isMaxUpgradeShotTower = this.isMaxUpgradeShotTower(tower);
 
-            if (fired && isMaxUpgradeShotTower && Math.random() < 0.05) {
+            if (fired && isMaxUpgradeShotTower && Math.random() < 0.01) {
                 const soundName = this.getMaxUpgradeShotSound(tower);
                 if (soundName) this.playSound(soundName);
             } else if (fired && tower.type === 'bomber') {
@@ -2945,6 +2949,12 @@ class Game {
                                 bombHit = true;
                             
                                 if (enemy.hp <= 0) {
+                                    const bomberKilledBoss = enemyList === this.bosses
+                                        && bullet.sourceTower
+                                        && bullet.sourceTower.type === 'bomber';
+                                    if (bomberKilledBoss) {
+                                        this.playSound('vats');
+                                    }
                                     this.money += enemy.worth || 0;
                                     this.addExp(5);
                                     if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -3097,6 +3107,10 @@ class Game {
                     this.playSound('enemyHit');
 
                     if (boss.hp <= 0) {
+                        const bomberKilledBoss = bullet.sourceTower && bullet.sourceTower.type === 'bomber';
+                        if (bomberKilledBoss) {
+                            this.playSound('vats');
+                        }
                         this.createExplosion(boss.x, boss.y);
                         this.money += boss.worth;
                         this.bosses.splice(j, 1);
