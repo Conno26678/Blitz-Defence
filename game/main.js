@@ -20,7 +20,7 @@ function hidePayment() {
 }
 
 //Some don't work on intended or just need some touching up before being added to the shop
-const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun']);
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'gambler', 'bomber']);
 
 function isTowerShopAvailable(key) {
     return AVAILABLE_TOWER_SHOP_KEYS.has(key);
@@ -209,6 +209,10 @@ class Game {
             wizardEarthquake: document.getElementById('wizardEarthquake'),
             wizardFog: document.getElementById('wizardFog'),
             wizardDoubleStrike: document.getElementById('wizardDoubleStrike'),
+            thinkFast: document.getElementById('thinkFast'),
+            genFinished: document.getElementById('genFinished'),
+            nerfgun: document.getElementById('nerfgun'),
+            fireworks: document.getElementById('fireworks'),
             diceRoll: document.getElementById('diceRoll')
         }
 
@@ -483,6 +487,44 @@ class Game {
         }
     }
 
+    isMaxUpgradeShotTower(tower) {
+        if (!tower) return false;
+        if (tower.type === 'gambler') {
+            return tower.level >= 10;
+        }
+
+        return !!(tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel());
+    }
+
+    getMaxUpgradeShotSound(tower) {
+        if (!tower) return null;
+
+        switch (tower.type) {
+            case 'bomber':
+                return 'fireworks';
+            case 'blaster':
+                return 'plankton';
+            case 'shooter':
+                return 'thinkFast';
+            case 'sentinel':
+                return 'nerfgun';
+            case 'generator':
+                return 'genFinished';
+            case 'wizard':
+                return 'wizardFireball';
+            case 'railgun':
+                return 'mikuBeam';
+            case 'hacker':
+                return 'getOffFloor';
+            case 'overlord':
+                return 'flintChicken';
+            case 'gambler':
+                return 'diceRoll';
+            default:
+                return null;
+        }
+    }
+
     applySoundSetting() {
         const enabled = this.soundEnabled;
         const allAudio = [
@@ -696,6 +738,9 @@ class Game {
         const tower = this.selectedPlacedTower;
         const nextUpgrades = tower.getAvailableUpgrades ? tower.getAvailableUpgrades() : [];
         const nextUpgrade = nextUpgrades[0];
+        const gamblerRollLocked =
+            tower.type === 'gambler' &&
+            tower.gamblerUpgradeWavePurchased === this.waveNumber;
         const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
 
         const levelText = `Lv ${tower.level || 1}`;
@@ -726,9 +771,21 @@ class Game {
             <div class="upgrade-cost">Cost: $${nextUpgrade.cost}</div>
         </div>`;
 
+        if (tower.type === 'gambler') {
+            bodyHTML += `<div class="upgrade-description">Only one gambler roll can be bought per turn.</div>`;
+        }
+
         body.innerHTML = bodyHTML;
-        upgradeButton.textContent = `Buy ${nextUpgrade.name} ($${nextUpgrade.cost})`;
-        upgradeButton.disabled = this.money < nextUpgrade.cost;
+        if (tower.type === 'gambler' && gamblerRollLocked) {
+            upgradeButton.textContent = 'Roll used this turn';
+            upgradeButton.disabled = true;
+        } else if (tower.type === 'gambler') {
+            upgradeButton.textContent = `Roll the Dice ($${nextUpgrade.cost})`;
+            upgradeButton.disabled = this.money < nextUpgrade.cost;
+        } else {
+            upgradeButton.textContent = `Buy ${nextUpgrade.name} ($${nextUpgrade.cost})`;
+            upgradeButton.disabled = this.money < nextUpgrade.cost;
+        }
         upgradeButton.dataset.upgradeId = nextUpgrade.id;
     }
 
@@ -739,12 +796,26 @@ class Game {
         const [nextUpgrade] = tower.getAvailableUpgrades();
         if (!nextUpgrade) return;
         if (this.money < nextUpgrade.cost) return;
+        if (tower.type === 'gambler' && tower.gamblerUpgradeWavePurchased === this.waveNumber) {
+            return;
+        }
 
         const applied = tower.applyUpgrade(nextUpgrade.id);
         if (!applied) return;
 
         this.money -= applied.cost;
-        if (tower.type === 'gambler' && applied.id === 'luckyCharm') {
+        if (tower.type === 'wizard' && applied.id === 'spellweaving') {
+            this.playSound('wizardDoubleStrike');
+        } else if (tower.type === 'wizard' && applied.id === 'untoldPower') {
+            this.playSound('wizardFog');
+        } else if (tower.type === 'generator' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+            this.playSound('genFinished');
+        } else if (tower.type === 'sentinel' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+            this.playSound('nerfgun');
+        } else if (tower.type === 'shooter' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+            this.playSound('thinkFast');
+        } else if (tower.type === 'gambler') {
+            tower.gamblerUpgradeWavePurchased = this.waveNumber;
             this.playSound('diceRoll');
         } else if (tower.type === 'hacker' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
             this.playSound('getOffFloor');
@@ -1575,6 +1646,14 @@ class Game {
             const fired = tower.shoot(this.bullets);
             const hasOverdrive = tower.appliedUpgradeIds && tower.appliedUpgradeIds.includes('overdrive');
             const hasMaximumOverdrive = tower.appliedUpgradeIds && tower.appliedUpgradeIds.includes('plankton');
+            const isMaxUpgradeShotTower = this.isMaxUpgradeShotTower(tower);
+
+            if (fired && isMaxUpgradeShotTower && Math.random() < 0.05) {
+                const soundName = this.getMaxUpgradeShotSound(tower);
+                if (soundName) this.playSound(soundName);
+            } else if (fired && tower.type === 'bomber') {
+                this.playSound('fireworks');
+            }
             if (fired && tower.type === 'blaster' && hasOverdrive && !hasMaximumOverdrive) {
                 this.playSound('megaman');
             }
@@ -1748,12 +1827,20 @@ class Game {
         }
     }
 
+    isWaveInProgress() {
+        return this.totalEnemiesInWave > 0
+            && (this.enemiesSpawned < this.totalEnemiesInWave || this.enemiesAlive > 0);
+    }
+
     updateSupportTowers(deltaTime, allEnemies) {
         for (let i = 0; i < this.placedTowers.length; i++) {
             const tower = this.placedTowers[i];
             if (!tower) continue;
 
             if (tower.type === 'generator') {
+                if (!this.isWaveInProgress()) {
+                    continue;
+                }
                 tower.regenCooldown -= deltaTime;
                 if (tower.regenCooldown <= 0) {
                     this.maxSheild = Math.max(this.maxSheild, 250 + (tower.regenMax || 0));
@@ -1984,7 +2071,6 @@ class Game {
                             life: 550,
                             color: '#ba68c8'
                         });
-                        this.playSound('wizardArcaneSurge');
                     } else if (spell === 'earthquake') {
                         const nearestTrack = this.getNearestTrackSpawn(tx, ty);
                         if (nearestTrack) {
@@ -2029,7 +2115,6 @@ class Game {
                             life: Math.max(3000, tower.spellLength || 2000),
                             color: '#90a4ae'
                         });
-                        this.playSound('wizardFog');
                     }
                 }
 
@@ -2047,7 +2132,6 @@ class Game {
                         life: 950,
                         color: '#fff176'
                     });
-                    this.playSound('wizardDoubleStrike');
                 }
 
                 tower.supportCooldown = Math.max(2200, tower.supportCastRate || 12000);
@@ -2869,6 +2953,11 @@ class Game {
 
                     if (bombHit) {
                         this.createExplosion(explosionX, explosionY);
+                        this.addSpellAnimation('bombBlast', explosionX, explosionY, {
+                            radius: Math.max(18, Math.min(36, explosionRadius * 0.75)),
+                            life: 2000,
+                            color: '#ffb74d'
+                        });
                         this.playSound('enemyHit');
                         this.bullets.splice(i, 1);
                         shouldSkipRegularCollision = true;
@@ -3205,6 +3294,17 @@ class Game {
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (anim.type === 'bombBlast') {
+                ctx.fillStyle = `rgba(255, 183, 77, ${0.16 * alpha})`;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = `rgba(255, 235, 170, ${0.7 * alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius * 0.75, 0, Math.PI * 2);
                 ctx.stroke();
             }
             ctx.restore();

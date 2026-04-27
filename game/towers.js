@@ -82,7 +82,7 @@ const TOWER_TYPES = {
         cost: 500,
         damage: 3,
         range: 65,
-        fireRate: 1500,
+        fireRate: 2200,
         pierce: 0,
         projectileSpeed: 0.85,
         projectileCount: 1,
@@ -97,12 +97,12 @@ const TOWER_TYPES = {
     },
     generator: {
         name: 'Shield Generator',
-        cost: 50,
+        cost: 75,
         damage: 0,
         color: '#00BCD4',
         width: 30,
         height: 30,
-        regenSpeed : 9500,
+        regenSpeed : 6500,
         regenAmount : 10,
         regenMax: 20,
         image: '/img/gen.png'
@@ -111,7 +111,7 @@ const TOWER_TYPES = {
         name: 'Sentinel',
         range: 130,
         damage: 1,
-        fireRate: 80,
+        fireRate: 250,
         pierce: 0,
         projectileSpeed: 1,
         projectileLife: 1,
@@ -122,7 +122,7 @@ const TOWER_TYPES = {
         damageReinforced: false,
         width: 40,
         height: 30,
-        cost: 500,
+        cost: 750,
         color: '#7c7c7cff',
         image: '/img/burst.png'
     },
@@ -141,7 +141,7 @@ const TOWER_TYPES = {
         projectileSpeed: 1,
         width: 30,
         height: 30,
-        image: '/img/wizard.png'
+        image: '/img/shadowWizard.png'
     },
     kid: {
         name: 'Silly Billy',
@@ -331,7 +331,7 @@ const TOWER_UPGRADES = {
             tier: 6,
             name: 'Miku Miku Beam',
             description: 'Miku Miku Beeeeeeaaammmm! Improves damage, attack speed, and gives infinite pierce/range.',
-            cost: 50,
+            cost: 10000,
             image: '/img/miku.png',
             apply: (tower) => {
                 tower.damage += 10;
@@ -426,18 +426,33 @@ const TOWER_UPGRADES = {
             id: 'luckyCharm',
             tier: 1,
             name: 'Lucky Charm',
-            description: 'A lucky charm that allows you to try your luck and get a different tower/upgrade.',
+            description: 'Roll for a random buff/upgrade each round. ',
             cost: 50,
             image: '/img/pokerTable.jpg',
-            //Randomly apply upgrades from other towers. Only applies one upgrade and cannot apply gambler upgrades to avoid infinite loops.
-            //Maybe change it so it has a chance to get a random other towers upgrade/look like them until end of turn
+            //Randomly apply upgrades
             apply: (tower) => {
                 const rolls = [
                     () => { tower.damage += 2; },
+                    () => { tower.damage += 4; scaleFireRate(tower, 1.15, 90); },
                     () => { tower.range += 25; },
+                    () => { tower.range += 45; },
                     () => { scaleFireRate(tower, 0.75, 90); },
+                    () => { scaleFireRate(tower, 0.6, 75); },
                     () => { addPierce(tower, 2); },
+                    () => { addPierce(tower, 4); },
                     () => { tower.projectileCount += 1; },
+                    () => {
+                        tower.projectileCount += 1;
+                        tower.range += 12;
+                    },
+                    () => {
+                        tower.damage += 2;
+                        addPierce(tower, 1);
+                    },
+                    () => {
+                        tower.seeHidden = true;
+                        tower.range += 10;
+                    },
                 ];
                 const index = Math.floor(Math.random() * rolls.length);
                 rolls[index]();
@@ -626,12 +641,12 @@ const TOWER_UPGRADES = {
             }
         },
         {
-            id: 'clusterBomb',
+            id: 'Boomer',
             tier: 5,
             name: 'Cluster Bomb',
-            description: 'Fire a wave of 5 rockets with increased damage.',
+            description: 'This old guy showed up to help. Fire a wave of 5 rockets with increased damage.',
             cost: 12000,
-            image: '/img/bomb.png',
+            image: '/img/boomer.png',
             apply: (tower) => {
                 tower.projectileCount = Math.max(tower.projectileCount, 5);
                 tower.damage += 3;
@@ -643,7 +658,7 @@ const TOWER_UPGRADES = {
             name: 'Cluster F***',
             description: 'Youre gonna want to get in a vault for this one! Whenever a bomb explodes release a ring of smaller bombs around the area. ',
             cost: 50,
-            image: '/img/bomb.png',
+            image: '/img/vaultboy.png',
             apply: (tower) => {
                 tower.clusterOnExplosion = true;
                 tower.clusterCount = (tower.clusterCount || 0) + 8;
@@ -661,7 +676,7 @@ const TOWER_UPGRADES = {
             cost: 1300,
             image: '/img/gen.png',
             apply: (tower) => {
-                tower.regenSpeed = Math.max(1000, Math.round((tower.regenSpeed || 5000) * 0.85));
+                tower.regenSpeed = Math.max(1000, Math.round((tower.regenSpeed || 5000) * 0.75));
             }
         },
         {
@@ -682,7 +697,7 @@ const TOWER_UPGRADES = {
             id: 'enhancedBarrel',
             tier: 1,
             name: 'Enhanced Barrel',
-            description: 'An enhanced barrel that increases fire speed and less spread.',
+            description: 'An enhanced barrel that increases fire speed and better precision.',
             cost: 1000,
             image: '/img/burst.png',
             apply: (tower) => {
@@ -760,10 +775,10 @@ const TOWER_UPGRADES = {
         {
             id: 'spellweaving',
             tier: 1,
-            name: 'Spellweaving',
+            name: 'Storm Weaving',
             description: 'Cast faster and unlock Ice Storm, Earthquake, and Arcane Surge.',
             cost: 4000,
-            image: '/img/wizard.png',
+            image: '/img/shadowWizard.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.85, 80);
                 tower.spellCastRate = Math.max(1800, Math.round((tower.spellCastRate || 7000) * 0.8));
@@ -774,9 +789,9 @@ const TOWER_UPGRADES = {
             }
         },
         {
-            id: 'stormMastery',
+            id: 'untoldPower',
             tier: 2,
-            name: 'Storm Mastery',
+            name: 'Untold Power',
             description: 'Youve called upon magic from beyond your realm unlocking new spells and increasing spell duration and power.+',
             cost: 6000,
             image: '/img/magic.png',
@@ -901,7 +916,10 @@ class Tower {
     getAvailableUpgrades() {
         const options = TOWER_UPGRADES[this.type] || [];
         return options
-            .filter(upgrade => !this.appliedUpgradeIds.includes(upgrade.id))
+            .filter(upgrade => {
+                if (upgrade.id === 'luckyCharm') return true;
+                return !this.appliedUpgradeIds.includes(upgrade.id);
+            })
             .sort((a, b) => a.tier - b.tier);
     }
 
@@ -917,12 +935,18 @@ class Tower {
         if (!upgrade) return null;
 
         upgrade.apply(this);
-        this.appliedUpgradeIds.push(upgrade.id);
+        if (upgrade.id !== 'luckyCharm') {
+            this.appliedUpgradeIds.push(upgrade.id);
+        }
         this.totalSpent += Number.isFinite(upgrade.cost) ? upgrade.cost : 0;
         if (upgrade.image) {
             this.currentUpgradeImage = upgrade.image;
         }
         this.level += 1;
+
+        if (this.type === 'gambler' && this.level >= 10) {
+            this.currentUpgradeImage = '/img/gamblerUpgrade.png';
+        }
         return upgrade;
     }
 
@@ -935,6 +959,10 @@ class Tower {
     }
 
     getMaxLevelImagePath() {
+        if (this.type === 'gambler' && this.level >= 10) {
+            return '/img/gamblerUpgrade.png';
+        }
+
         if (this.currentUpgradeImage) return this.currentUpgradeImage;
 
         const upgrades = TOWER_UPGRADES[this.type] || [];
@@ -1164,6 +1192,32 @@ class Tower {
                     ctx.fill();
                     ctx.restore();
                 };
+            } else if (this.type === 'bomber') {
+                bullet.width = 12;
+                bullet.height = 12;
+                bullet.render = function(ctx) {
+                    const centerX = this.x + this.width / 2;
+                    const centerY = this.y + this.height / 2;
+
+                    ctx.save();
+                    ctx.fillStyle = '#2f2f2f';
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, this.width * 0.48, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ffb74d';
+                    ctx.beginPath();
+                    ctx.arc(centerX + 2, centerY - 4, 2.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX + 1, centerY - 6);
+                    ctx.lineTo(centerX + 4, centerY - 10);
+                    ctx.stroke();
+                    ctx.restore();
+                };
             }
 
                 // Special handling for bomber projectiles
@@ -1176,7 +1230,7 @@ class Tower {
                     bullet.maxFallSpeed = this.projectileSpeed * 1.2;
                 }
 
-            if (!isRailLaser) {
+            if (!isRailLaser && this.type !== 'bomber') {
                 bullet.render = function(ctx) {
                     ctx.fillStyle = this.towerColor || '#ffffff';
                     ctx.beginPath();
@@ -1216,7 +1270,7 @@ class Tower {
         }
 
         // Maxed towers use their upgrade icon on-canvas.
-        const shouldDrawIcon = this.isMaxUpgradeLevel();
+        const shouldDrawIcon = this.isMaxUpgradeLevel() || (this.type === 'gambler' && this.level >= 10);
         const iconPath = shouldDrawIcon ? this.getMaxLevelImagePath() : null;
         const iconImage = iconPath ? getTowerImage(iconPath) : null;
         const canDrawIcon = !!(iconImage && iconImage.complete && iconImage.naturalWidth > 0);
