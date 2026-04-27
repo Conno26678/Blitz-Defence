@@ -120,7 +120,7 @@ const TOWER_TYPES = {
         burstShotDelay: 110,
         seeHidden: false,
         damageReinforced: false,
-        width: 40,
+        width: 30,
         height: 30,
         cost: 500,
         color: '#7c7c7cff',

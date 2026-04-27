@@ -928,6 +928,18 @@ class Game {
             });
         }
 
+        const bossBtn = document.getElementById('bossBtn');
+        if (bossBtn) {
+            bossBtn.addEventListener('click', () => {
+                console.log('Boss button clicked');
+                    document.getElementById('victoryMenu').classList.add('hidden');
+                    this.waveNumber = 41;
+                    this.loadNewWave();
+                    this.started = true;
+                    this.gameRunning = true;
+            });
+        }
+
         const victoryMainMenuBtn = document.getElementById('victoryMainMenuBtn');
         if (victoryMainMenuBtn) {
             victoryMainMenuBtn.addEventListener('click', () => {
