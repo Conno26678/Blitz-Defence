@@ -17,7 +17,7 @@ const TOWER_TYPES = {
     blaster: {
         name: 'Blaster',
         cost: 250,
-        damage: 2,
+        damage: 1,
         range: 50,
         fireRate: 1250,
         color: '#FF9800',
@@ -33,7 +33,7 @@ const TOWER_TYPES = {
         cost: 300,
         damage: 5,
         range: 1000,
-        fireRate: 3500,
+        fireRate: 3000,
         color: '#2196F3',
         projectileCount: 1, 
         projectileSpeed: 0.8,
@@ -65,20 +65,20 @@ const TOWER_TYPES = {
     },
     overlord: {
         name: 'Overlord',
-        cost: 650,
+        cost: 1000,
         damage: 1,
         range: 25,
         fireRate: 1250,
         width: 30,
         height: 30,
         seeHidden: true,
-        summonSpeed: 2500,
-        summonCount: 3,
+        summonSpeed: 8500,
+        summonCount: 2,
         color: '#795548',
         image: '/img/chickenJockey.png'
     },
-    boomer: {
-        name: 'Boomer',
+    bomber: {
+        name: 'Bomber',
         cost: 500,
         damage: 3,
         range: 65,
@@ -92,7 +92,8 @@ const TOWER_TYPES = {
         color: '#f44336',
         width: 30,
         height: 30,
-        image: '/img/boomer.png'
+        image: '/img/bomb.png',
+        projectileLife: 2
     },
     generator: {
         name: 'Shield Generator',
@@ -101,28 +102,72 @@ const TOWER_TYPES = {
         color: '#00BCD4',
         width: 30,
         height: 30,
-        regenSpeed : 5000,
-        regenAmount : 15,
-        regenMax: 30,
+        regenSpeed : 9500,
+        regenAmount : 10,
+        regenMax: 20,
         image: '/img/gen.png'
     },
     sentinel: {
         name: 'Sentinel',
-        range: 25,
+        range: 130,
         damage: 1,
-        fireRate: 500,
+        fireRate: 80,
         pierce: 0,
         projectileSpeed: 1,
         projectileLife: 1,
         projectileCount: 3,
         spreadDegrees: 70,
+        burstShotDelay: 110,
         seeHidden: false,
         damageReinforced: false,
-        width: 40,
+        width: 30,
         height: 30,
         cost: 500,
         color: '#7c7c7cff',
         image: '/img/burst.png'
+    },
+    wizard: {
+        name: 'Wizard',
+        cost: 1000,
+        damage: 2,
+        range: 100,
+        fireRate: 1250,
+        spellCastRate: 7000,
+        supportCastRate: 12000,
+        spellLength: 2000,
+        fireball: true,
+        color: '#0004ff',
+        projectileCount: 1,
+        projectileSpeed: 1,
+        width: 30,
+        height: 30,
+        image: '/img/wizard.png'
+    },
+    kid: {
+        name: 'Silly Billy',
+        cost: 175,
+        damage: 0,
+        range: 85,
+        fireRate: 900,
+        stunChance: 1,
+        stunDuration: 2000,
+        width: 30,
+        height: 30,
+        color: '#f7d36b',
+        image: '/img/sillyBilly.png'
+    },
+    grohl: {
+        name: 'Grohl',
+        cost: 1,
+        damage: 0,
+        range: 0,
+        fireRate: 0,
+        color: '#9C27B0',
+        projectileCount: 1,
+        projectileSpeed: 1,
+        width: 30,
+        height: 30,
+        image: '/img/grohl.png'
     }
 };
 
@@ -215,7 +260,7 @@ const TOWER_UPGRADES = {
                 tower.damage += 3;
                 tower.range += 20;
                 scaleFireRate(tower, 0.6, 70);
-                tower.stunChance = Math.min(1, (tower.stunChance || 0) + 0.15);
+                tower.stunChance = Math.min(1, (tower.stunChance || 0) + 0.05);
             }
         }
     ],
@@ -264,7 +309,7 @@ const TOWER_UPGRADES = {
             cost: 2450,
             image: '/img/miku.png',
             apply: (tower) => {
-                tower.projectileCount += 2;
+                tower.refractionSplitCount = 2;
             }
         },
         {
@@ -278,6 +323,7 @@ const TOWER_UPGRADES = {
                 tower.damage += 8;
                 addPierce(tower, 5);
                 scaleFireRate(tower, 1.2, 120);
+                tower.railBeamMode = 'laser';
             }
         },
         {
@@ -293,6 +339,7 @@ const TOWER_UPGRADES = {
                 tower.pierce = Infinity;
                 tower.range = Infinity;
                 tower.seeHidden = true;
+                tower.railBeamMode = 'miku';
             }
         }
     ],
@@ -324,49 +371,53 @@ const TOWER_UPGRADES = {
             id: 'sturdyFrame',
             tier: 3,
             name: 'Sturdy Frame',
-            description: 'A more robust frame that can handle increased stress. Increases damage and lifespan',
+            description: 'A more robust frame that can handle increased stress. Increases damage and bullet count',
             cost: 1200,
             image: '/img/megaman.png',
             apply: (tower) => {
                 tower.damage += 1;
-                tower.projectileLife = (tower.projectileLife || 1) + 1;
+                tower.projectileCount += 2;
                 tower.range += 8;
             }
         },
         {
-            id: 'doubleBarrel',
+            id: 'shortCircuit',
             tier: 4,
-            name: 'Double Barrel',
-            description: 'Two barrels, doubling the number of projectiles.',
+            name: 'Short Circuit',
+            description: 'A short circuit in the firing mechanism causes enhanced range and damage, but reduces fire rate.',
             cost: 2450,
             image: '/img/megaman.png',
             apply: (tower) => {
-                tower.projectileCount *= 2;
+                tower.damage += 1;
+                tower.range += 8;
+                scaleFireRate(tower, 0.8, 100);
             }
         },
         {
             id: 'overdrive',
             tier: 5,
             name: 'Overdrive',
-            description: 'Time to take this puppy into overdrive. Increased damage and pierce, but slower fire rate.',
+            //update fire rate to be faster since its description has been upated to be faster instead of slower
+            description: 'Time to take this puppy into overdrive. Increased damage and pierce, and a faster fire rate.',
             cost: 5500,
             image: '/img/megaman.png',
             apply: (tower) => {
                 tower.damage += 3;
                 addPierce(tower, 2);
-                scaleFireRate(tower, 1.15, 100);
+                scaleFireRate(tower, 0.7, 100);
             }
         },
         {
             id: 'plankton',
             tier: 6,
             name: 'Maximum Overdrive',
-            description: 'Im shifting into MAXIMUM OVERDRIVE! Increased fire rate and range.',
+            description: 'Im shifting into MAXIMUM OVERDRIVE! Increased fire rate, range, and projectile count.',
             cost: 10000,
             image: '/img/planktonOverdrive.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.6, 70);
                 tower.range += 20;
+                tower.projectileCount *= 2;
             }
         }
     ],
@@ -378,6 +429,8 @@ const TOWER_UPGRADES = {
             description: 'A lucky charm that allows you to try your luck and get a different tower/upgrade.',
             cost: 50,
             image: '/img/pokerTable.jpg',
+            //Randomly apply upgrades from other towers. Only applies one upgrade and cannot apply gambler upgrades to avoid infinite loops.
+            //Maybe change it so it has a chance to get a random other towers upgrade/look like them until end of turn
             apply: (tower) => {
                 const rolls = [
                     () => { tower.damage += 2; },
@@ -396,11 +449,11 @@ const TOWER_UPGRADES = {
             id: 'swiftSkills',
             tier: 1,
             name: 'Swift Skills',
-            description: 'Improved hacking skills allowing for faster hacking.',
+            description: 'Improved hacking skills for a stronger payout at round start.',
             cost: 1325,
             image: '/img/redditMod.png',
             apply: (tower) => {
-                tower.hackInterval = Math.max(250, Math.round((tower.hackInterval || 2500) * 0.8));
+                tower.hackRewardMultiplier = (tower.hackRewardMultiplier || 1) + 0.35;
             }
         },
         {
@@ -418,11 +471,10 @@ const TOWER_UPGRADES = {
             id: 'malwareExpert',
             tier: 3,
             name: 'Malware Expert',
-            description: 'Advanced malware  allow for more sophisticated attacks and double the payout per hack.',
+            description: 'Advanced malware allows deeper exploits and doubles each round-start payout.',
             cost: 15000,
             image: '/img/redditMod.png',
             apply: (tower) => {
-                tower.hackInterval = Math.max(200, Math.round((tower.hackInterval || 2500) * 0.85));
                 tower.hackRewardMultiplier = (tower.hackRewardMultiplier || 1) * 2;
             }
         },
@@ -430,11 +482,10 @@ const TOWER_UPGRADES = {
             id: 'systemOverride',
             tier: 4,
             name: 'System Override',
-            description: 'Time to make the big bucks! Override system controls to generate more money and triple the amount per hack.',
+            description: 'Time to make the big bucks! Override controls to triple each round-start payout.',
             cost: 63500,
             image: '/img/redditMod.png',
             apply: (tower) => {
-                tower.hackInterval = Math.max(160, Math.round((tower.hackInterval || 2500) * 0.8));
                 tower.hackRewardMultiplier = (tower.hackRewardMultiplier || 1) * 3;
             }
         },
@@ -460,7 +511,7 @@ const TOWER_UPGRADES = {
             cost: 850,
             image: '/img/chickenJockey.png',
             apply: (tower) => {
-                tower.summonSpeed = Math.max(250, Math.round((tower.summonSpeed || 2500) * 0.8));
+                tower.summonSpeed = Math.max(1200, Math.round((tower.summonSpeed || 2500) * 0.92));
                 tower.summonCount = (tower.summonCount || 1) + 1;
             }
         },
@@ -472,8 +523,8 @@ const TOWER_UPGRADES = {
             cost: 1900,
             image: '/img/chickenJockey.png',
             apply: (tower) => {
-                tower.summonDamageMultiplier = (tower.summonDamageMultiplier || 1) + 0.5;
-                tower.summonMoveSpeedMultiplier = (tower.summonMoveSpeedMultiplier || 1) + 0.25;
+                tower.summonDamageMultiplier = (tower.summonDamageMultiplier || 1) + 0.2;
+                tower.summonMoveSpeedMultiplier = (tower.summonMoveSpeedMultiplier || 1) + 0.1;
             }
         },
         {
@@ -484,8 +535,8 @@ const TOWER_UPGRADES = {
             cost: 3500,
             image: '/img/chickenJockey.png',
             apply: (tower) => {
-                tower.summonCount = (tower.summonCount || 1) + 2;
-                tower.summonMoveSpeedMultiplier = (tower.summonMoveSpeedMultiplier || 1) + 0.15;
+                tower.summonCount = (tower.summonCount || 1) + 1;
+                tower.summonMoveSpeedMultiplier = (tower.summonMoveSpeedMultiplier || 1) + 0.1;
             }
         },
         {
@@ -507,8 +558,8 @@ const TOWER_UPGRADES = {
             cost: 7500,
             image: '/img/chickenJockey.png',
             apply: (tower) => {
-                tower.summonCount = Math.max(1, (tower.summonCount || 1) * 2);
-                tower.summonSpeed = Math.round((tower.summonSpeed || 2500) * 1.2);
+                tower.summonCount = (tower.summonCount || 1) + 1;
+                tower.summonSpeed = Math.round((tower.summonSpeed || 2500) * 1.5);
             }
         },
         {
@@ -519,20 +570,20 @@ const TOWER_UPGRADES = {
             cost: 50,
             image: '/img/chickenJockey.png',
             apply: (tower) => {
-                tower.summonCount = (tower.summonCount || 1) + 3;
-                tower.summonMoveSpeedMultiplier = (tower.summonMoveSpeedMultiplier || 1) + 0.4;
-                tower.summonSpeed = Math.max(200, Math.round((tower.summonSpeed || 2500) * 0.75));
+                tower.summonCount = (tower.summonCount || 1) + 1;
+                tower.summonMoveSpeedMultiplier = (tower.summonMoveSpeedMultiplier || 1) + 0.2;
+                tower.summonSpeed = Math.max(1200, Math.round((tower.summonSpeed || 2500) * 1.25));
             }
         }
     ],
-    boomer: [
+    bomber: [
         {
             id: 'heavyPayload',
             tier: 1,
             name: 'Heavy Payload',
             description: 'Big boom hehe. Increased area and damage.',
             cost: 650,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.damage += 2;
                 tower.explosionArea = (tower.explosionArea || 0) + 15;
@@ -544,7 +595,7 @@ const TOWER_UPGRADES = {
             name: 'Laser Guidance',
             description: 'A laser guidance system that allows for more accurate range.',
             cost: 1500,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.range += 20;
                 tower.projectileSpeed += 0.2;
@@ -556,7 +607,7 @@ const TOWER_UPGRADES = {
             name: 'Fast Reload',
             description: 'Reloads quicker for more destruction faster.',
             cost: 4000,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.8, 90);
             }
@@ -567,7 +618,7 @@ const TOWER_UPGRADES = {
             name: 'Aerodynamic Shells',
             description: 'Improved aerodynamics for faster firing and piercing.',
             cost: 9800,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 scaleFireRate(tower, 0.85, 80);
                 addPierce(tower, 2);
@@ -580,7 +631,7 @@ const TOWER_UPGRADES = {
             name: 'Cluster Bomb',
             description: 'Fire a wave of 5 rockets with increased damage.',
             cost: 12000,
-            image: '/img/boomer.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.projectileCount = Math.max(tower.projectileCount, 5);
                 tower.damage += 3;
@@ -592,7 +643,7 @@ const TOWER_UPGRADES = {
             name: 'Cluster F***',
             description: 'Youre gonna want to get in a vault for this one! Whenever a bomb explodes release a ring of smaller bombs around the area. ',
             cost: 50,
-            image: '/img/vaultboy.png',
+            image: '/img/bomb.png',
             apply: (tower) => {
                 tower.clusterOnExplosion = true;
                 tower.clusterCount = (tower.clusterCount || 0) + 8;
@@ -610,7 +661,7 @@ const TOWER_UPGRADES = {
             cost: 1300,
             image: '/img/gen.png',
             apply: (tower) => {
-                tower.regenSpeed = Math.max(250, Math.round((tower.regenSpeed || 5000) * 0.5));
+                tower.regenSpeed = Math.max(1000, Math.round((tower.regenSpeed || 5000) * 0.85));
             }
         },
         {
@@ -637,6 +688,7 @@ const TOWER_UPGRADES = {
             apply: (tower) => {
                 scaleFireRate(tower, 0.9, 70);
                 tightenSpread(tower, 0.75);
+                tower.range += 4;
             }
         },
         {
@@ -662,6 +714,7 @@ const TOWER_UPGRADES = {
                 tower.damageReinforced = true;
                 addPierce(tower, 1);
                 tower.damage += 2;
+                tower.range += 2;
             }
         },
         {
@@ -683,9 +736,9 @@ const TOWER_UPGRADES = {
             description: 'Fires two more bullets in the burst with faster fire rate.',
             cost: 5000,
             image: '/img/burst.png',
-            apply: (tower) => {
+            apply: (tower) => { 
                 tower.projectileCount += 2;
-                scaleFireRate(tower, 0.9, 55);
+                scaleFireRate(tower, 0.9, 55);;
             }
         },
         {
@@ -699,6 +752,56 @@ const TOWER_UPGRADES = {
                 tower.projectileCount += 1;
                 scaleFireRate(tower, 0.75, 50);
                 tightenSpread(tower, 0.7);
+                tower.range += 10;
+            }
+        }
+    ],
+    wizard: [
+        {
+            id: 'spellweaving',
+            tier: 1,
+            name: 'Spellweaving',
+            description: 'Cast faster and unlock Ice Storm, Earthquake, and Arcane Surge.',
+            cost: 4000,
+            image: '/img/wizard.png',
+            apply: (tower) => {
+                scaleFireRate(tower, 0.85, 80);
+                tower.spellCastRate = Math.max(1800, Math.round((tower.spellCastRate || 7000) * 0.8));
+                tower.supportCastRate = Math.max(4000, Math.round((tower.supportCastRate || 12000) * 0.9));
+                tower.arcaneSurge = true;
+                tower.iceStorm = true;
+                tower.earthquake = true;
+            }
+        },
+        {
+            id: 'stormMastery',
+            tier: 2,
+            name: 'Storm Mastery',
+            description: 'Youve called upon magic from beyond your realm unlocking new spells and increasing spell duration and power.+',
+            cost: 6000,
+            image: '/img/magic.png',
+            apply: (tower) => {
+                tower.damage += 1;
+                tower.spellCastRate = Math.max(1700, Math.round((tower.spellCastRate || 7000) * 0.9));
+                tower.supportCastRate = Math.max(3600, Math.round((tower.supportCastRate || 12000) * 0.8));
+                tower.spellLength = (tower.spellLength || 2000) + 1500;
+                tower.fog = true;
+                tower.doubleStrike = true;
+            }
+        }
+    ],
+    grohl: [
+        {
+            id: 'sacrifice',
+            tier: 1,
+            name: 'Power',
+            description: 'Is it worth the cost?',
+            cost: 'Everything you have and more.' || 9999999999,
+            image: '/img/grohl.png',
+            apply: (tower) => {
+                tower.damage = 100;
+                tower.range = 100;
+                tower.fireRate = 1000;
             }
         }
     ]
@@ -740,6 +843,9 @@ class Tower {
         this.spreadRadians = typeof def.spreadDegrees === 'number'
             ? (def.spreadDegrees * Math.PI) / 180
             : (def.spreadRadians || 0);
+        this.burstShotDelay = def.burstShotDelay || 120;
+        this.burstShotsRemaining = 0;
+        this.burstTotalShots = 0;
 
         this.projectileLife = def.projectileLife || 0;
         this.damageReinforced = !!def.damageReinforced;
@@ -763,12 +869,28 @@ class Tower {
         this.summonBossChance = def.summonBossChance || 0;
 
         this.stunChance = def.stunChance || 0;
+        this.stunDuration = def.stunDuration || 0;
+
+        this.fireball = !!def.fireball;
+        this.arcaneSurge = !!def.arcaneSurge;
+        this.iceStorm = !!def.iceStorm;
+        this.earthquake = !!def.earthquake;
+        this.fog = !!def.fog;
+        this.doubleStrike = !!def.doubleStrike;
+        this.spellCastRate = def.spellCastRate || 0;
+        this.supportCastRate = def.supportCastRate || 0;
+        this.spellLength = def.spellLength || 2000;
+        this.spellPower = def.spellPower || 1;
 
         this.level = 1;
         this.appliedUpgradeIds = [];
         this.currentUpgradeImage = def.image || null;
+        this.totalSpent = Number.isFinite(def.cost) ? def.cost : 0;
+        this.totalHackedMoney = 0;
 
         this.fireCooldown = 0;
+        this.spellCooldown = this.spellCastRate;
+        this.supportCooldown = this.supportCastRate;
         this.hackCooldown = this.hackInterval;
         this.regenCooldown = this.regenSpeed;
         this.summonCooldown = this.summonSpeed;
@@ -796,11 +918,16 @@ class Tower {
 
         upgrade.apply(this);
         this.appliedUpgradeIds.push(upgrade.id);
+        this.totalSpent += Number.isFinite(upgrade.cost) ? upgrade.cost : 0;
         if (upgrade.image) {
             this.currentUpgradeImage = upgrade.image;
         }
         this.level += 1;
         return upgrade;
+    }
+
+    getSellValue() {
+        return Math.floor(this.totalSpent * 0.63);
     }
 
     isMaxUpgradeLevel() {
@@ -846,6 +973,11 @@ class Tower {
                 this.target = enemy;
             }
         });
+
+        if (this.type === 'sentinel' && !this.target) {
+            this.burstShotsRemaining = 0;
+            this.burstTotalShots = 0;
+        }
     }
 
     /**
@@ -855,8 +987,14 @@ class Tower {
      * @param {Array} bullets - shared game bullets array
      */
     shoot(bullets) {
-        if (!this.target || this.fireCooldown > 0) return;
-        this.fireCooldown = this.fireRate;
+        if (!this.target || this.fireCooldown > 0) return false;
+        const isSentinelBurst = this.type === 'sentinel';
+        if (!isSentinelBurst) {
+            this.fireCooldown = this.fireRate * (this.attackSpeedMultiplier || 1);
+        } else if (this.burstShotsRemaining <= 0) {
+            this.burstShotsRemaining = Math.max(1, this.projectileCount || 1);
+            this.burstTotalShots = this.burstShotsRemaining;
+        }
 
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;
@@ -866,20 +1004,29 @@ class Tower {
         const dx = tx - cx;
         const dy = ty - cy;
         const len = Math.sqrt(dx * dx + dy * dy);
-        if (len === 0) return;
+        if (len === 0) return false;
 
         const baseAngle = Math.atan2(dy, dx);
-        const count = this.projectileCount;
+        const count = isSentinelBurst ? 1 : this.projectileCount;
         const hasConeSpread = count > 1 && this.spreadRadians > 0 && this.spreadRadians < (Math.PI * 2);
         const angleStep = count > 1
             ? (hasConeSpread ? this.spreadRadians / Math.max(1, count - 1) : (Math.PI * 2) / count)
             : 0;
         const startAngle = hasConeSpread ? (baseAngle - this.spreadRadians / 2) : 0;
+        let sentinelShotAngle = baseAngle;
+        if (isSentinelBurst && this.burstTotalShots > 1 && this.spreadRadians > 0 && this.spreadRadians < (Math.PI * 2)) {
+            const burstStep = this.spreadRadians / Math.max(1, this.burstTotalShots - 1);
+            const burstStart = baseAngle - this.spreadRadians / 2;
+            const burstIndex = this.burstTotalShots - this.burstShotsRemaining;
+            sentinelShotAngle = burstStart + (burstStep * burstIndex);
+        }
 
         for (let i = 0; i < count; i++) {
-            const angle = count > 1
+            const angle = isSentinelBurst
+                ? sentinelShotAngle
+                : (count > 1
                 ? (hasConeSpread ? (startAngle + i * angleStep) : (i * angleStep))
-                : baseAngle;
+                : baseAngle);
 
             const bullet = new Bullet(cx, cy, true);
             bullet.width = 6;
@@ -893,6 +1040,7 @@ class Tower {
             bullet.sourceTower = this;
             bullet.damageReinforced = !!this.damageReinforced;
             bullet.stunChance = this.stunChance || 0;
+            bullet.stunDuration = this.stunDuration || 0;
             bullet.clusterOnExplosion = !!this.clusterOnExplosion;
             bullet.clusterCount = this.clusterCount || 0;
 
@@ -900,15 +1048,158 @@ class Tower {
                 bullet.lifeRemaining = this.projectileLife * 1000;
             }
 
-            bullet.render = function(ctx) {
-                ctx.fillStyle = this.towerColor || '#ffffff';
-                ctx.beginPath();
-                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
-                ctx.fill();
-            };
+            const isRailLaser = this.type === 'railgun' && (this.railBeamMode === 'laser' || this.railBeamMode === 'miku');
+            if (isRailLaser) {
+                const isMikuBeam = this.railBeamMode === 'miku';
+                const beamThickness = isMikuBeam ? 18 : 6;
+                const beamLength = isMikuBeam ? 0 : 120;
+                const beamLife = isMikuBeam ? 650 : 260;
+
+                bullet.isRailBeam = true;
+                bullet.isMikuBeam = isMikuBeam;
+                bullet.beamThickness = beamThickness;
+                bullet.beamLength = beamLength;
+
+                bullet.width = beamThickness;
+                bullet.height = beamThickness;
+                bullet.lifeRemaining = Math.max(bullet.lifeRemaining || 0, beamLife);
+
+                bullet.render = function(ctx) {
+                    const centerX = this.x + this.width / 2;
+                    const centerY = this.y + this.height / 2;
+                    const velocityLength = Math.sqrt(this.vx * this.vx + this.vy * this.vy) || 1;
+                    const dirX = this.vx / velocityLength;
+                    const dirY = this.vy / velocityLength;
+
+                    let tailX = centerX - dirX * beamLength;
+                    let tailY = centerY - dirY * beamLength;
+                    let headX = centerX;
+                    let headY = centerY;
+
+                    if (isMikuBeam) {
+                        const source = this.sourceTower;
+                        const startX = source ? (source.x + source.width / 2) : centerX;
+                        const startY = source ? (source.y + source.height / 2) : centerY;
+                        const fullScreenLength = Math.hypot(ctx.canvas.width, ctx.canvas.height) + 180;
+                        tailX = startX;
+                        tailY = startY;
+                        headX = startX + dirX * fullScreenLength;
+                        headY = startY + dirY * fullScreenLength;
+                    }
+
+                    ctx.save();
+                    ctx.lineCap = 'round';
+
+                    ctx.strokeStyle = isMikuBeam
+                        ? 'rgba(0, 255, 255, 0.35)'
+                        : 'rgba(33, 150, 243, 0.35)';
+                    ctx.lineWidth = beamThickness * 1.9;
+                    ctx.beginPath();
+                    ctx.moveTo(tailX, tailY);
+                    ctx.lineTo(headX, headY);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = isMikuBeam ? '#7cf7ff' : '#a8d7ff';
+                    ctx.lineWidth = beamThickness;
+                    ctx.beginPath();
+                    ctx.moveTo(tailX, tailY);
+                    ctx.lineTo(headX, headY);
+                    ctx.stroke();
+
+                    ctx.restore();
+                };
+            } else if (this.type === 'kid') {
+                bullet.width = 12;
+                bullet.height = 12;
+                bullet.render = function(ctx) {
+                    const centerX = this.x + this.width / 2;
+                    const centerY = this.y + this.height / 2;
+                    const angle = Math.atan2(this.vy || 0, this.vx || 1);
+
+                    ctx.save();
+                    ctx.translate(centerX, centerY);
+                    ctx.rotate(angle);
+
+                    ctx.strokeStyle = '#f1e6c8';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(-4, 0);
+                    ctx.lineTo(7, 0);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ff7aa2';
+                    ctx.beginPath();
+                    ctx.arc(-7, 0, 7, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(-8.5, -2.5, 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                };
+            } else if (this.type === 'wizard' && this.fireball) {
+                bullet.width = 9;
+                bullet.height = 9;
+                bullet.lifeRemaining = Math.max(bullet.lifeRemaining || 0, 900);
+                bullet.render = function(ctx) {
+                    const cx = this.x + this.width / 2;
+                    const cy = this.y + this.height / 2;
+
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(255, 126, 41, 0.35)';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, this.width * 0.9, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ff6a00';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, this.width * 0.58, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ffe082';
+                    ctx.beginPath();
+                    ctx.arc(cx + 1.5, cy - 1.5, this.width * 0.25, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                };
+            }
+
+                // Special handling for bomber projectiles
+                if (this.type === 'bomber') {
+                    bullet.isBomb = true;
+                    bullet.explosionArea = this.explosionArea;
+                    // Override vertical velocity for arc trajectory
+                    bullet.vy = -this.projectileSpeed * 0.7; // Goes up initially
+                    bullet.gravity = 0.015; // Gravity effect for arc
+                    bullet.maxFallSpeed = this.projectileSpeed * 1.2;
+                }
+
+            if (!isRailLaser) {
+                bullet.render = function(ctx) {
+                    ctx.fillStyle = this.towerColor || '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+            }
 
             bullets.push(bullet);
         }
+
+        if (isSentinelBurst) {
+            this.burstShotsRemaining = Math.max(0, this.burstShotsRemaining - 1);
+            const burstDelay = Math.max(40, this.burstShotDelay || 120);
+            if (this.burstShotsRemaining > 0) {
+                this.fireCooldown = burstDelay * (this.attackSpeedMultiplier || 1);
+            } else {
+                this.fireCooldown = this.fireRate * (this.attackSpeedMultiplier || 1);
+                this.burstTotalShots = 0;
+            }
+        }
+
+        return true;
     }
 
     render(ctx) {

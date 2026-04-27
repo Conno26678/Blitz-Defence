@@ -19,7 +19,8 @@ function hidePayment() {
     }
 }
 
-const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster']);
+//Some don't work on intended or just need some touching up before being added to the shop
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun']);
 
 function isTowerShopAvailable(key) {
     return AVAILABLE_TOWER_SHOP_KEYS.has(key);
@@ -84,6 +85,59 @@ async function doTransfer() {
     }
 }
 
+class FriendlySummon {
+    constructor(x, y, path, options = {}) {
+        this.x = x;
+        this.y = y;
+        this.width = options.width || 22;
+        this.height = options.height || 22;
+        this.speed = options.speed || 1.1;
+        this.hp = options.hp || 1;
+        this.damage = options.damage || 1;
+        this.path = Array.isArray(path) ? path : [];
+        this.currentWaypoint = this.path.length > 1 ? 1 : 0;
+        this.color = options.color || '#b9ff57';
+    }
+
+    update(deltaTime) {
+        if (!this.path || this.path.length === 0 || this.currentWaypoint >= this.path.length) {
+            this.hp = 0;
+            return;
+        }
+
+        const target = this.path[this.currentWaypoint];
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const dx = target.x - cx;
+        const dy = target.y - cy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < 8) {
+            this.currentWaypoint++;
+            if (this.currentWaypoint >= this.path.length) {
+                this.hp = 0;
+            }
+            return;
+        }
+
+        this.x += (dx / distance) * this.speed * deltaTime / 16;
+        this.y += (dy / distance) * this.speed * deltaTime / 16;
+    }
+
+    render(ctx) {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -102,13 +156,18 @@ class Game {
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
+        this.friendlySummons = [];
         this.particles = [];
+        this.spellAnimations = [];
+        this.spellZones = [];
+        this.trackWalls = [];
+        this.towerBuffs = [];
 
         this.exp = 0;
         this.level = 1;
         this.sheild = 250;
         this.maxSheild = 250;
-        this.money = 500;
+        this.money = 99999;
         this.expToNextLevel = 100;
         this.showLevelUp = false;
 
@@ -136,7 +195,21 @@ class Game {
             playerDefeat: document.getElementById('playerDefeat'),
             bossDefeat: document.getElementById('bossDefeat'),
             slasherDash: document.getElementById('slasherDash'),
-            railgunShot: document.getElementById('railgunShot')
+            railgunShot: document.getElementById('railgunShot'),
+            levelUp: document.getElementById('levelUp'),
+            megaman: document.getElementById('megaman'),
+            plankton: document.getElementById('plankton'),
+            mikuBeam: document.getElementById('mikuBeam'),
+            scaryDiscord: document.getElementById('scaryDiscord'),
+            flintChicken: document.getElementById('flintChicken'),
+            getOffFloor: document.getElementById('getOffFloor'),
+            wizardFireball: document.getElementById('wizardFireball'),
+            wizardIceStorm: document.getElementById('wizardIceStorm'),
+            wizardArcaneSurge: document.getElementById('wizardArcaneSurge'),
+            wizardEarthquake: document.getElementById('wizardEarthquake'),
+            wizardFog: document.getElementById('wizardFog'),
+            wizardDoubleStrike: document.getElementById('wizardDoubleStrike'),
+            diceRoll: document.getElementById('diceRoll')
         }
 
         Object.values(this.soundEffects).forEach(sound => {
@@ -157,13 +230,7 @@ class Game {
         this.spawnTimer = 0;
         this.spawnDelay = 250; // 0.25 seconds in milliseconds
         this.waveStartAllowed = false; // Flag to control wave start button availability
-
-        // Load persisted settings
-        const _saved = (() => { try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); } catch (e) { return {}; } })();
-        this.autoStart = _saved.waveAuto === true;  // default: manual
-        this.showTooltips = _saved.tooltips !== false;  // default: on
-        this.soundEnabled = _saved.sound !== false;  // default: on
-        this.applySoundSetting();
+        this.autoStart = false; // Disable auto-starting next wave for manual control
 
         // Multi-track spawning modes
         this.multiTrackMode = 'perWave'; // 'perEnemy', 'perWave', or 'single'
@@ -219,6 +286,98 @@ class Game {
         this.updatePlayerPreview();
     }
 
+    showMapSelectionMenu() {
+        this.hideAllMenus();
+        document.getElementById('mapSelectionMenu').classList.remove('hidden');
+        this.populateMapGrid();
+        this.currentMapPage = 0;
+        this.updateMapNavigation();
+    }
+
+    populateMapGrid() {
+        const mapGrid = document.getElementById('mapGrid');
+        if (!mapGrid) return;
+
+        // Define your maps with their corresponding image files
+        this.availableMaps = [
+            { index: 0, name: '3 Ways', image: '/img/mapIMG/3Ways.png' },
+            { index: 1, name: 'Spiral', image: '/img/mapIMG/Spiral.png' },
+            { index: 2, name: '4Corners', image: '/img/mapIMG/4Corners.png' },
+            { index: 3, name: 'Mirrored', image: '/img/mapIMG/Mirrored.png' },
+            { index: 4, name: 'Cricut', image: '/img/mapIMG/Circut.png' },
+            { index: 5, name: 'Eye Spy', image: '/img/mapIMG/EyeSpye.png' },
+            { index: 6, name: '???', image: '/img/mapIMG/random.png' },
+            { index: 7, name: 'Vortex', image: '/img/mapIMG/VortexMap.png' },
+            { index: 8, name: 'Empty Space', image: '/img/mapIMG/EmptySpace.png' }
+        ];
+
+        this.mapsPerPage = 8;
+        this.totalPages = Math.ceil(this.availableMaps.length / this.mapsPerPage);
+        this.currentMapPage = 0;
+
+        this.renderMapPage();
+    }
+
+    renderMapPage() {
+        const mapGrid = document.getElementById('mapGrid');
+        mapGrid.innerHTML = '';
+
+        const startIndex = this.currentMapPage * this.mapsPerPage;
+        const endIndex = Math.min(startIndex + this.mapsPerPage, this.availableMaps.length);
+
+        for (let i = startIndex; i < endIndex; i++) {
+            const map = this.availableMaps[i];
+
+            const mapCard = document.createElement('div');
+            mapCard.className = 'map-card';
+            if (map.index === this.mapManager.currentMapIndex) {
+                mapCard.classList.add('selected');
+            }
+
+            // Updated structure: name first, then image
+            mapCard.innerHTML = `
+            <div class="map-name">${map.name}</div>
+            <img src="${map.image}" alt="${map.name}" class="map-preview-img" 
+                 onerror="this.style.background='#333'; this.style.border='1px solid #555';">
+        `;
+
+            mapCard.addEventListener('click', () => {
+                this.selectMap(map.index);
+            });
+
+            mapGrid.appendChild(mapCard);
+        }
+    }
+
+
+    selectMap(mapIndex) {
+        console.log(`Selected map: ${mapIndex}`);
+
+        // Update the map manager
+        this.mapManager.currentMapIndex = mapIndex;
+        this.mapManager.currentMap = this.mapManager.maps[mapIndex];
+        this.updateMultiTrackMode();
+
+        // Hide the selection menu and return to start menu
+        document.getElementById('mapSelectionMenu').classList.add('hidden');
+        this.showStartMenu();
+
+        // The canvas should automatically update because the start menu shows the map
+    }
+
+    updateMapNavigation() {
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        const pageIndicator = document.getElementById('pageIndicator');
+
+        if (prevBtn) prevBtn.disabled = this.currentMapPage === 0;
+        if (nextBtn) nextBtn.disabled = this.currentMapPage >= this.totalPages - 1;
+        if (pageIndicator) {
+            pageIndicator.textContent = `Page ${this.currentMapPage + 1} of ${this.totalPages}`;
+        }
+    }
+
+
     showPauseMenu() {
         this.hideAllMenus();
         document.getElementById('pauseMenu').classList.remove('hidden');
@@ -231,7 +390,7 @@ class Game {
     // }
 
     hideAllMenus() {
-        const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu', 'gameOver', 'victoryMenu'];
+        const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu', 'gameOver', 'victoryMenu', 'mapSelectionMenu'];
         menuIds.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
@@ -241,6 +400,7 @@ class Game {
             }
         });
     }
+
 
     startBackgroundMusic() {
         if (this.backgroundMusic) {
@@ -509,8 +669,9 @@ class Game {
         const panel = document.getElementById('towerUpgradePanel');
         const title = document.getElementById('towerUpgradeTitle');
         const body = document.getElementById('towerUpgradeBody');
-        const button = document.getElementById('towerUpgradeBtn');
-        if (!panel || !title || !body || !button) return;
+        const upgradeButton = document.getElementById('towerUpgradeBtn');
+        const sellButton = document.getElementById('towerSellBtn');
+        if (!panel || !title || !body || !upgradeButton || !sellButton) return;
 
         this.updateStoreDockUI();
 
@@ -522,9 +683,11 @@ class Game {
             panel.classList.add('inactive');
             title.textContent = 'No Tower Selected';
             body.innerHTML = 'Click a placed tower to view upgrades.';
-            button.textContent = 'Upgrade';
-            button.disabled = true;
-            button.dataset.upgradeId = '';
+            upgradeButton.textContent = 'Upgrade';
+            upgradeButton.disabled = true;
+            upgradeButton.dataset.upgradeId = '';
+            sellButton.textContent = 'Sell';
+            sellButton.disabled = true;
             return;
         }
 
@@ -533,14 +696,23 @@ class Game {
         const tower = this.selectedPlacedTower;
         const nextUpgrades = tower.getAvailableUpgrades ? tower.getAvailableUpgrades() : [];
         const nextUpgrade = nextUpgrades[0];
+        const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
 
-        title.textContent = `${tower.name} (Lv ${tower.level || 1})`;
+        const levelText = `Lv ${tower.level || 1}`;
+        if (tower.type === 'hacker') {
+            const hackedTotal = Math.round(tower.totalHackedMoney || 0);
+            title.textContent = `${tower.name} (${levelText} | Earned $${hackedTotal})`;
+        } else {
+            title.textContent = `${tower.name} (${levelText})`;
+        }
+        sellButton.textContent = `Sell ($${sellValue})`;
+        sellButton.disabled = false;
 
         if (!nextUpgrade) {
             body.innerHTML = 'No upgrades available yet for this tower.';
-            button.textContent = 'Maxed';
-            button.disabled = true;
-            button.dataset.upgradeId = '';
+            upgradeButton.textContent = 'Maxed';
+            upgradeButton.disabled = true;
+            upgradeButton.dataset.upgradeId = '';
             return;
         }
 
@@ -555,9 +727,9 @@ class Game {
         </div>`;
 
         body.innerHTML = bodyHTML;
-        button.textContent = `Buy ${nextUpgrade.name} ($${nextUpgrade.cost})`;
-        button.disabled = this.money < nextUpgrade.cost;
-        button.dataset.upgradeId = nextUpgrade.id;
+        upgradeButton.textContent = `Buy ${nextUpgrade.name} ($${nextUpgrade.cost})`;
+        upgradeButton.disabled = this.money < nextUpgrade.cost;
+        upgradeButton.dataset.upgradeId = nextUpgrade.id;
     }
 
     buySelectedTowerUpgrade() {
@@ -572,8 +744,36 @@ class Game {
         if (!applied) return;
 
         this.money -= applied.cost;
+        if (tower.type === 'gambler' && applied.id === 'luckyCharm') {
+            this.playSound('diceRoll');
+        } else if (tower.type === 'hacker' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+            this.playSound('getOffFloor');
+        } else if (tower.type === 'overlord' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+            this.playSound('flintChicken');
+        } else if (tower.type === 'blaster' && applied.id === 'plankton') {
+            this.playSound('plankton');
+        } else if (tower.type === 'railgun' && applied.id === 'mikubeam') {
+            this.playSound('mikuBeam');
+        } else {
+            this.playSound('levelUp');
+        }
         this.updateGameUI();
         console.log(`Upgraded ${tower.name} with ${applied.name}. Money left: ${this.money}`);
+    }
+
+    sellSelectedTower() {
+        const tower = this.selectedPlacedTower;
+        if (!tower) return;
+
+        const index = this.placedTowers.indexOf(tower);
+        if (index === -1) return;
+
+        const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
+        this.money += sellValue;
+        this.placedTowers.splice(index, 1);
+        this.setSelectedPlacedTower(null);
+        this.updateGameUI();
+        console.log(`Sold ${tower.name} for $${sellValue}. Money now: ${this.money}`);
     }
 
 
@@ -630,6 +830,12 @@ class Game {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             this.handleCanvasClick(x, y, e);
+        });
+
+        this.canvas.addEventListener('contextmenu', (e) => {
+            if (this.selectedTower) {
+                e.preventDefault();
+            }
         });
 
         const restartBtn = document.getElementById('restartBtn');
@@ -722,6 +928,18 @@ class Game {
             });
         }
 
+        const bossBtn = document.getElementById('bossBtn');
+        if (bossBtn) {
+            bossBtn.addEventListener('click', () => {
+                console.log('Boss button clicked');
+                    document.getElementById('victoryMenu').classList.add('hidden');
+                    this.waveNumber = 41;
+                    this.loadNewWave();
+                    this.started = true;
+                    this.gameRunning = true;
+            });
+        }
+
         const victoryMainMenuBtn = document.getElementById('victoryMainMenuBtn');
         if (victoryMainMenuBtn) {
             victoryMainMenuBtn.addEventListener('click', () => {
@@ -731,7 +949,36 @@ class Game {
             });
         }
 
+        // Map selection navigation
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        if (prevPageBtn) {
+            prevPageBtn.addEventListener('click', () => {
+                if (this.currentMapPage > 0) {
+                    this.currentMapPage--;
+                    this.renderMapPage();
+                    this.updateMapNavigation();
+                }
+            });
+        }
 
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        if (nextPageBtn) {
+            nextPageBtn.addEventListener('click', () => {
+                if (this.currentMapPage < this.totalPages - 1) {
+                    this.currentMapPage++;
+                    this.renderMapPage();
+                    this.updateMapNavigation();
+                }
+            });
+        }
+
+        const cancelMapSelection = document.getElementById('cancelMapSelection');
+        if (cancelMapSelection) {
+            cancelMapSelection.addEventListener('click', () => {
+                document.getElementById('mapSelectionMenu').classList.add('hidden');
+                this.showStartMenu();
+            });
+        }
 
         // Player customization buttons
         const colorBtn = document.getElementById('colorBtn');
@@ -761,8 +1008,7 @@ class Game {
         const mapBtn = document.getElementById('mapBtn');
         if (mapBtn) {
             mapBtn.addEventListener('click', () => {
-                this.mapManager.cycleMap();
-                this.updateMultiTrackMode(); // Update spawning mode based on new map
+                this.showMapSelectionMenu();
             });
         }
 
@@ -770,6 +1016,13 @@ class Game {
         if (towerUpgradeBtn) {
             towerUpgradeBtn.addEventListener('click', () => {
                 this.buySelectedTowerUpgrade();
+            });
+        }
+
+        const towerSellBtn = document.getElementById('towerSellBtn');
+        if (towerSellBtn) {
+            towerSellBtn.addEventListener('click', () => {
+                this.sellSelectedTower();
             });
         }
 
@@ -793,6 +1046,16 @@ class Game {
     }
 
     handleCanvasClick(x, y, e) {
+        // Right-click cancels the currently selected shop tower for placement.
+        if (e.button === 2) {
+            if (this.selectedTower) {
+                e.preventDefault();
+                this.selectedTower = null;
+                this.updateTowerShopUI();
+            }
+            return;
+        }
+
         // Make it so towers can't be placed near the wave start button
         if (this.pointInRect(x, y, this.uiRects.waveStart)) {
             console.log("Wave start button clicked!");
@@ -817,7 +1080,10 @@ class Game {
         if (this.started && this.gameRunning && !this.selectedTower) {
             const clickedTower = this.findTowerAtPoint(x, y);
             this.setSelectedPlacedTower(clickedTower);
-            if (clickedTower) return;
+            if (clickedTower) {
+                this.toggleStoreDock(true);
+                return;
+            }
         }
 
         // Tower placement on the map 
@@ -841,6 +1107,10 @@ class Game {
             this.placedTowers.push(placedTower);
             this.setSelectedPlacedTower(placedTower);
             this.money -= def.cost;
+            if (placedTower.type === 'hacker') {
+                this.playSound('scaryDiscord');
+            }
+            this.selectedTower = null;
             this.updateGameUI();
             console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
             return;
@@ -1303,28 +1573,37 @@ class Game {
         // Update placed towers (acquire targets & fire)
         const allEnemies = [
             ...this.enemies,
-            ...this.shooters,
             ...this.tanks,
             ...this.sprinters,
             ...this.bosses
         ];
 
         this.updateSupportTowers(deltaTime, allEnemies);
+        this.castWizardSpells(deltaTime, allEnemies);
+        this.updateSpellStates(deltaTime);
 
         this.placedTowers.forEach(tower => {
             tower.update(deltaTime, allEnemies);
-            tower.shoot(this.bullets);
+            const fired = tower.shoot(this.bullets);
+            const hasOverdrive = tower.appliedUpgradeIds && tower.appliedUpgradeIds.includes('overdrive');
+            const hasMaximumOverdrive = tower.appliedUpgradeIds && tower.appliedUpgradeIds.includes('plankton');
+            if (fired && tower.type === 'blaster' && hasOverdrive && !hasMaximumOverdrive) {
+                this.playSound('megaman');
+            }
+            if (fired && tower.type === 'wizard') {
+                this.playSound('wizardFireball');
+            }
         });
     }
 
-    findNearestEnemy(x, y, enemies, range = Infinity) {
+    findNearestEnemy(x, y, enemies, range = Infinity, canSeeHidden = false) {
         let nearest = null;
         let nearestDist = range;
 
         for (let i = 0; i < enemies.length; i++) {
             const enemy = enemies[i];
             if (!enemy || enemy.hp <= 0) continue;
-            if (enemy.hidden) continue;
+            if (enemy.hidden && !canSeeHidden) continue;
 
             const ex = enemy.x + (enemy.width || 0) / 2;
             const ey = enemy.y + (enemy.height || 0) / 2;
@@ -1338,6 +1617,78 @@ class Game {
         }
 
         return nearest;
+    }
+
+    getNearestTrackSpawn(x, y) {
+        const availablePaths = this.mapManager.getAvailablePaths();
+        let best = null;
+
+        for (let p = 0; p < availablePaths.length; p++) {
+            const pathName = availablePaths[p];
+            const waypoints = this.mapManager.getPathWaypoints(pathName) || [];
+            for (let i = 0; i < waypoints.length; i++) {
+                const point = waypoints[i];
+                const dx = point.x - x;
+                const dy = point.y - y;
+                const distSq = dx * dx + dy * dy;
+                if (!best || distSq < best.distSq) {
+                    best = {
+                        pathName,
+                        waypoints,
+                        waypointIndex: i,
+                        x: point.x,
+                        y: point.y,
+                        distSq
+                    };
+                }
+            }
+        }
+
+        return best;
+    }
+
+    buildReversePathFromWaypoint(waypoints, startIndex) {
+        const reversePath = [];
+        for (let i = startIndex; i >= 0; i--) {
+            reversePath.push({ x: waypoints[i].x, y: waypoints[i].y });
+        }
+        return reversePath;
+    }
+
+    spawnFriendlySummon(tower, bossSummon = false) {
+        const cx = tower.x + tower.width / 2;
+        const cy = tower.y + tower.height / 2;
+        const nearestTrack = this.getNearestTrackSpawn(cx, cy);
+        if (!nearestTrack || !nearestTrack.waypoints || nearestTrack.waypoints.length < 2) return;
+
+        const reversePath = this.buildReversePathFromWaypoint(
+            nearestTrack.waypoints,
+            Math.max(1, nearestTrack.waypointIndex)
+        );
+        if (reversePath.length < 2) return;
+
+        const summonSpeed = Math.max(0.65, (tower.projectileSpeed || 1) * (tower.summonMoveSpeedMultiplier || 1));
+        const summonDamage = Math.max(
+            1,
+            Math.round((tower.damage || 1) * (tower.summonDamageMultiplier || 1) * (bossSummon ? 1.25 : 1) * 0.65)
+        );
+
+        const summonSize = bossSummon ? 26 : 22;
+        const summon = new FriendlySummon(
+            reversePath[0].x - summonSize / 2,
+            reversePath[0].y - summonSize / 2,
+            reversePath,
+            {
+                width: summonSize,
+                height: summonSize,
+                speed: summonSpeed,
+                hp: bossSummon ? 2 : 1,
+                damage: summonDamage,
+                color: bossSummon ? '#ffd166' : '#b9ff57'
+            }
+        );
+
+        this.friendlySummons.push(summon);
     }
 
     spawnSummonProjectile(tower, target, bossSummon = false) {
@@ -1361,7 +1712,7 @@ class Game {
         bullet.vy = (dy / len) * speed;
         bullet.damage = Math.max(
             1,
-            Math.round((tower.damage || 1) * (tower.summonDamageMultiplier || 1) * (bossSummon ? 2 : 1))
+            Math.round((tower.damage || 1) * (tower.summonDamageMultiplier || 1) * (bossSummon ? 1.25 : 1) * 0.65)
         );
         bullet.pierce = 1;
         bullet.isPlayer = true;
@@ -1373,37 +1724,46 @@ class Game {
         this.bullets.push(bullet);
     }
 
+    getHackerRoundReward(tower) {
+        return Math.max(
+            1,
+            Math.round((12 + this.waveNumber * 1.2) * (tower.hackRewardMultiplier || 1))
+        );
+    }
+
+    runHackerRoundHack(allEnemies) {
+        for (let i = 0; i < this.placedTowers.length; i++) {
+            const tower = this.placedTowers[i];
+            if (!tower || tower.type !== 'hacker') continue;
+
+            const reward = this.getHackerRoundReward(tower);
+            this.money += reward;
+            tower.totalHackedMoney = (tower.totalHackedMoney || 0) + reward;
+
+            if (tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
+                this.playSound('getOffFloor');
+            }
+
+            if (
+                tower.statusCleanseChance > 0 &&
+                allEnemies.length > 0 &&
+                Math.random() < tower.statusCleanseChance
+            ) {
+                const index = Math.floor(Math.random() * allEnemies.length);
+                const target = allEnemies[index];
+                if (target) {
+                    target.hidden = false;
+                    if ('isDashing' in target) target.isDashing = false;
+                    if ('stunTimer' in target) target.stunTimer = 0;
+                }
+            }
+        }
+    }
+
     updateSupportTowers(deltaTime, allEnemies) {
         for (let i = 0; i < this.placedTowers.length; i++) {
             const tower = this.placedTowers[i];
             if (!tower) continue;
-
-            if (tower.type === 'hacker') {
-                tower.hackCooldown -= deltaTime;
-                if (tower.hackCooldown <= 0) {
-                    const reward = Math.max(
-                        1,
-                        Math.round((4 + this.waveNumber * 0.4) * (tower.hackRewardMultiplier || 1))
-                    );
-                    this.money += reward;
-
-                    if (
-                        tower.statusCleanseChance > 0 &&
-                        allEnemies.length > 0 &&
-                        Math.random() < tower.statusCleanseChance
-                    ) {
-                        const index = Math.floor(Math.random() * allEnemies.length);
-                        const target = allEnemies[index];
-                        if (target) {
-                            target.hidden = false;
-                            if ('isDashing' in target) target.isDashing = false;
-                            if ('stunTimer' in target) target.stunTimer = 0;
-                        }
-                    }
-
-                    tower.hackCooldown = Math.max(200, tower.hackInterval || 2500);
-                }
-            }
 
             if (tower.type === 'generator') {
                 tower.regenCooldown -= deltaTime;
@@ -1419,19 +1779,290 @@ class Game {
                 if (tower.summonCooldown <= 0) {
                     const summonCount = Math.max(1, tower.summonCount || 1);
                     for (let s = 0; s < summonCount; s++) {
-                        const target = this.findNearestEnemy(
-                            tower.x + tower.width / 2,
-                            tower.y + tower.height / 2,
-                            allEnemies,
-                            tower.range ? Math.max(tower.range * 6, 160) : 220
-                        );
-                        if (!target) break;
                         const bossSummon = Math.random() < (tower.summonBossChance || 0);
-                        this.spawnSummonProjectile(tower, target, bossSummon);
+                        this.spawnFriendlySummon(tower, bossSummon);
                     }
 
-                    tower.summonCooldown = Math.max(250, tower.summonSpeed || 2500);
+                    tower.summonCooldown = Math.max(1200, tower.summonSpeed || 2500);
                 }
+            }
+        }
+    }
+
+    getAllEnemies() {
+        return [
+            ...this.enemies,
+            ...this.shooters,
+            ...this.tanks,
+            ...this.sprinters,
+            ...this.bosses
+        ];
+    }
+
+    addSpellAnimation(type, x, y, options = {}) {
+        this.spellAnimations.push({
+            type,
+            x,
+            y,
+            radius: options.radius || 30,
+            life: options.life || 600,
+            maxLife: options.life || 600,
+            color: options.color || '#ffffff'
+        });
+    }
+
+    getEnemySpeedMultiplier(enemy, now) {
+        let multiplier = 1;
+
+        if ((enemy.spellSlowUntil || 0) > now) {
+            multiplier = Math.min(multiplier, enemy.spellSlowMultiplier || 1);
+        }
+
+        for (let i = 0; i < this.spellZones.length; i++) {
+            const zone = this.spellZones[i];
+            if (!zone || zone.type !== 'slow' || zone.expiresAt <= now) continue;
+            const ex = enemy.x + (enemy.width || 0) / 2;
+            const ey = enemy.y + (enemy.height || 0) / 2;
+            const dx = ex - zone.x;
+            const dy = ey - zone.y;
+            if ((dx * dx + dy * dy) <= zone.radius * zone.radius) {
+                multiplier = Math.min(multiplier, zone.multiplier || 1);
+            }
+        }
+
+        return Math.max(0.2, multiplier);
+    }
+
+    handleTrackWallCollision(enemy, deltaTime) {
+        for (let i = 0; i < this.trackWalls.length; i++) {
+            const wall = this.trackWalls[i];
+            if (!wall || wall.hp <= 0) continue;
+            if (!this.checkCollision(enemy, wall)) continue;
+
+            const breakRate = Math.max(0.1, (enemy.damage || 1) * 0.025) * (deltaTime / 16);
+            wall.hp -= breakRate;
+
+            if (wall.hp <= 0) {
+                this.addSpellAnimation('quakeBreak', wall.x + wall.width / 2, wall.y + wall.height / 2, {
+                    radius: 26,
+                    life: 500,
+                    color: '#d7ccc8'
+                });
+                this.playSound('wizardEarthquake');
+            }
+            return true;
+        }
+        return false;
+    }
+
+    updateEnemyGroup(enemyList, deltaTime) {
+        const now = Date.now();
+        return enemyList.filter(enemy => {
+            if ((enemy.stunTimer || 0) > 0) {
+                enemy.stunTimer -= deltaTime;
+            } else if (!this.handleTrackWallCollision(enemy, deltaTime)) {
+                const speedMultiplier = this.getEnemySpeedMultiplier(enemy, now);
+                const baseSpeed = enemy.speed;
+                enemy.speed = baseSpeed * speedMultiplier;
+                enemy.update(deltaTime);
+                enemy.speed = baseSpeed;
+            }
+            return enemy.hp > 0;
+        });
+    }
+
+    updateTowerBuffStates(now) {
+        for (let i = 0; i < this.placedTowers.length; i++) {
+            const tower = this.placedTowers[i];
+            if (tower) {
+                tower.attackSpeedMultiplier = 1;
+            }
+        }
+
+        for (let i = 0; i < this.towerBuffs.length; i++) {
+            const buff = this.towerBuffs[i];
+            if (!buff || buff.expiresAt <= now) continue;
+
+            for (let t = 0; t < this.placedTowers.length; t++) {
+                const tower = this.placedTowers[t];
+                if (!tower || tower === buff.sourceTower) continue;
+                const tx = tower.x + tower.width / 2;
+                const ty = tower.y + tower.height / 2;
+                const dx = tx - buff.x;
+                const dy = ty - buff.y;
+                if ((dx * dx + dy * dy) <= buff.radius * buff.radius) {
+                    tower.attackSpeedMultiplier = Math.min(
+                        tower.attackSpeedMultiplier || 1,
+                        buff.attackSpeedMultiplier || 1
+                    );
+                }
+            }
+        }
+    }
+
+    updateSpellStates(deltaTime) {
+        const now = Date.now();
+
+        this.spellAnimations = this.spellAnimations.filter(anim => {
+            anim.life -= deltaTime;
+            return anim.life > 0;
+        });
+
+        this.spellZones = this.spellZones.filter(zone => zone && zone.expiresAt > now);
+        this.towerBuffs = this.towerBuffs.filter(buff => buff && buff.expiresAt > now);
+        this.trackWalls = this.trackWalls.filter(wall => wall && wall.hp > 0 && wall.expiresAt > now);
+
+        this.updateTowerBuffStates(now);
+    }
+
+    castWizardSpells(deltaTime, allEnemies) {
+        if (!allEnemies || allEnemies.length === 0) return;
+
+        for (let i = 0; i < this.placedTowers.length; i++) {
+            const tower = this.placedTowers[i];
+            if (!tower || tower.type !== 'wizard') continue;
+
+            tower.spellCooldown = Math.max(0, (tower.spellCooldown || tower.spellCastRate || 0) - deltaTime);
+            tower.supportCooldown = Math.max(0, (tower.supportCooldown || tower.supportCastRate || 0) - deltaTime);
+
+            const cx = tower.x + tower.width / 2;
+            const cy = tower.y + tower.height / 2;
+
+            if (tower.spellCastRate > 0 && tower.spellCooldown <= 0) {
+                const target = this.findNearestEnemy(cx, cy, allEnemies, tower.range + 30);
+                if (target) {
+                    const tx = target.x + (target.width || 0) / 2;
+                    const ty = target.y + (target.height || 0) / 2;
+                    const spells = [];
+                    if (tower.iceStorm) spells.push('iceStorm');
+                    if (tower.arcaneSurge) spells.push('arcaneSurge');
+                    if (tower.earthquake) spells.push('earthquake');
+                    const spell = spells.length > 0
+                        ? spells[Math.floor(Math.random() * spells.length)]
+                        : 'fireball';
+
+                    if (spell === 'iceStorm') {
+                        const dx = tx - cx;
+                        const dy = ty - cy;
+                        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const speed = Math.max(0.55, (tower.projectileSpeed || 1) * 0.85);
+
+                        const bullet = new Bullet(cx, cy, true);
+                        bullet.isPlayer = true;
+                        bullet.fromTower = true;
+                        bullet.sourceTower = tower;
+                        bullet.isWizardIceStorm = true;
+                        bullet.width = 11;
+                        bullet.height = 11;
+                        bullet.damage = Math.max(1, Math.round((tower.damage || 1) * 0.75));
+                        bullet.pierce = 1;
+                        bullet.lifeRemaining = 2400;
+                        bullet.vx = (dx / len) * speed;
+                        bullet.vy = (dy / len) * speed;
+                        bullet.towerColor = '#90caf9';
+                        bullet.render = function(ctx) {
+                            const px = this.x + this.width / 2;
+                            const py = this.y + this.height / 2;
+                            ctx.save();
+                            ctx.fillStyle = 'rgba(144, 202, 249, 0.35)';
+                            ctx.beginPath();
+                            ctx.arc(px, py, this.width * 0.9, 0, Math.PI * 2);
+                            ctx.fill();
+
+                            ctx.fillStyle = '#b3e5fc';
+                            ctx.beginPath();
+                            ctx.arc(px, py, this.width * 0.55, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.restore();
+                        };
+                        this.bullets.push(bullet);
+                        this.playSound('wizardIceStorm');
+                    } else if (spell === 'arcaneSurge') {
+                        const surgeRadius = 60;
+                        for (let e = 0; e < allEnemies.length; e++) {
+                            const enemy = allEnemies[e];
+                            if (!enemy || enemy.hp <= 0) continue;
+                            const ex = enemy.x + (enemy.width || 0) / 2;
+                            const ey = enemy.y + (enemy.height || 0) / 2;
+                            const sdx = ex - tx;
+                            const sdy = ey - ty;
+                            if ((sdx * sdx + sdy * sdy) <= surgeRadius * surgeRadius) {
+                                const surgeDamage = Math.max(1, Math.round((tower.damage || 1) * 0.8));
+                                enemy.takeDamage ? enemy.takeDamage(surgeDamage) : (enemy.hp -= surgeDamage);
+                            }
+                        }
+                        this.addSpellAnimation('arcaneSurge', tx, ty, {
+                            radius: surgeRadius,
+                            life: 550,
+                            color: '#ba68c8'
+                        });
+                        this.playSound('wizardArcaneSurge');
+                    } else if (spell === 'earthquake') {
+                        const nearestTrack = this.getNearestTrackSpawn(tx, ty);
+                        if (nearestTrack) {
+                            const wallSize = 22;
+                            this.trackWalls.push({
+                                x: nearestTrack.x - wallSize / 2,
+                                y: nearestTrack.y - wallSize / 2,
+                                width: wallSize,
+                                height: wallSize,
+                                hp: 18,
+                                expiresAt: Date.now() + 5500
+                            });
+                            this.addSpellAnimation('earthquake', nearestTrack.x, nearestTrack.y, {
+                                radius: 36,
+                                life: 650,
+                                color: '#bcaaa4'
+                            });
+                            this.playSound('wizardEarthquake');
+                        }
+                    }
+                }
+
+                tower.spellCooldown = Math.max(1000, tower.spellCastRate || 7000);
+            }
+
+            if (tower.supportCastRate > 0 && tower.supportCooldown <= 0) {
+                if (tower.fog) {
+                    const fogTarget = this.findNearestEnemy(cx, cy, allEnemies, tower.range + 40);
+                    if (fogTarget) {
+                        const fx = fogTarget.x + (fogTarget.width || 0) / 2;
+                        const fy = fogTarget.y + (fogTarget.height || 0) / 2;
+                        this.spellZones.push({
+                            type: 'slow',
+                            x: fx,
+                            y: fy,
+                            radius: 90,
+                            multiplier: 0.55,
+                            expiresAt: Date.now() + Math.max(3000, tower.spellLength || 2000)
+                        });
+                        this.addSpellAnimation('fog', fx, fy, {
+                            radius: 90,
+                            life: Math.max(3000, tower.spellLength || 2000),
+                            color: '#90a4ae'
+                        });
+                        this.playSound('wizardFog');
+                    }
+                }
+
+                if (tower.doubleStrike) {
+                    this.towerBuffs.push({
+                        x: cx,
+                        y: cy,
+                        radius: tower.range + 50,
+                        attackSpeedMultiplier: 0.6,
+                        expiresAt: Date.now() + 15000,
+                        sourceTower: tower
+                    });
+                    this.addSpellAnimation('doubleStrike', cx, cy, {
+                        radius: tower.range + 50,
+                        life: 950,
+                        color: '#fff176'
+                    });
+                    this.playSound('wizardDoubleStrike');
+                }
+
+                tower.supportCooldown = Math.max(2200, tower.supportCastRate || 12000);
             }
         }
     }
@@ -1484,11 +2115,79 @@ class Game {
         this.totalEnemiesInWave = this.currentWave.length;
         this.waveComplete = false;
 
+        // Slightly accelerate spawn pacing as waves increase to preserve the
+        // existing curve while increasing pressure.
+        const paceBonus = Math.floor((this.waveNumber - 1) * 3.5);
+        this.spawnDelay = Math.max(120, 260 - paceBonus);
+
         // Reset wave track index for per-wave mode
         if (this.multiTrackMode === 'perWave') {
             const availablePaths = this.mapManager.getAvailablePaths();
             this.waveTrackIndex = (this.waveTrackIndex + 1) % availablePaths.length;
         }
+
+        const allEnemies = [
+            ...this.enemies,
+            ...this.shooters,
+            ...this.tanks,
+            ...this.sprinters,
+            ...this.bosses
+        ];
+        this.runHackerRoundHack(allEnemies);
+    }
+
+    getEnemyBucketForClass(EnemyClass) {
+        if (!EnemyClass) return 'enemies';
+
+        if (EnemyClass === Smith || EnemyClass.name === 'Smith') return 'bosses';
+        if (EnemyClass === Boss || EnemyClass.name === 'Boss') return 'bosses';
+        if (EnemyClass === Tank || EnemyClass.name === 'Tank') return 'tanks';
+
+        if (
+            EnemyClass === Sprinter1 ||
+            EnemyClass === Sprinter2 ||
+            (EnemyClass.name && EnemyClass.name.startsWith('Sprinter'))
+        ) {
+            return 'sprinters';
+        }
+
+        if (
+            EnemyClass === Enemy1 ||
+            EnemyClass === Enemy2 ||
+            EnemyClass === Enemy3 ||
+            (EnemyClass.name && EnemyClass.name.startsWith('Enemy'))
+        ) {
+            return 'enemies';
+        }
+
+        return 'enemies';
+    }
+
+    getEnemyBucketForClass(EnemyClass) {
+        if (!EnemyClass) return 'enemies';
+
+        if (EnemyClass === Smith || EnemyClass.name === 'Smith') return 'bosses';
+        if (EnemyClass === Boss || EnemyClass.name === 'Boss') return 'bosses';
+        if (EnemyClass === Tank || EnemyClass.name === 'Tank') return 'tanks';
+
+        if (
+            EnemyClass === Sprinter1 ||
+            EnemyClass === Sprinter2 ||
+            (EnemyClass.name && EnemyClass.name.startsWith('Sprinter'))
+        ) {
+            return 'sprinters';
+        }
+
+        if (
+            EnemyClass === Enemy1 ||
+            EnemyClass === Enemy2 ||
+            EnemyClass === Enemy3 ||
+            (EnemyClass.name && EnemyClass.name.startsWith('Enemy'))
+        ) {
+            return 'enemies';
+        }
+
+        return 'enemies';
     }
 
     spawnNextEnemy() {
@@ -1528,18 +2227,14 @@ class Game {
 
         enemy.setPath(pathWaypoints);
 
-        // Add to appropriate array
-        if (EnemyClass === Enemy) {
-            this.enemies.push(enemy);
-        } else if (EnemyClass === Shooter) {
-            this.shooters.push(enemy);
-        } else if (EnemyClass === Tank) {
-            this.tanks.push(enemy);
-        } else if (EnemyClass === Sprinter) {
-            this.sprinters.push(enemy);
-        } else if (EnemyClass === Boss) {
-            this.sprinters.push(enemy);
+        // Don't apply enhancements to Smith - he's already perfect
+        if (EnemyClass.name !== 'Smith') {
+            applyEnemyEnhancements(enemy, this.waveNumber);
         }
+
+        // Add to appropriate array
+        const bucket = this.getEnemyBucketForClass(EnemyClass);
+        this[bucket].push(enemy);
 
         this.enemiesSpawned++;
         this.enemiesAlive++;
@@ -1562,15 +2257,16 @@ class Game {
 
     clearAllEnemies() {
         // Create explosions for dramatic effect
-        [...this.enemies, ...this.shooters, ...this.tanks, ...this.sprinters].forEach(enemy => {
+        [...this.enemies, ...this.tanks, ...this.sprinters, ...this.bosses].forEach(enemy => {
             this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
         });
 
         // Actually clear all enemies and bullets
         this.enemies = [];
-        this.shooters = [];
         this.tanks = [];
         this.sprinters = [];
+        this.bosses = [];
+        this.friendlySummons = [];
         this.bullets = [];
     }
 
@@ -1581,7 +2277,7 @@ class Game {
         }
 
         // Count total living enemies
-        this.enemiesAlive = this.enemies.length + this.shooters.length + this.tanks.length + this.sprinters.length + this.bosses.length;
+        this.enemiesAlive = this.enemies.length + this.tanks.length + this.sprinters.length + this.bosses.length;
 
         // Check if wave is complete (all enemies spawned and defeated)
         if (this.enemiesSpawned >= this.totalEnemiesInWave && this.enemiesAlive === 0) {
@@ -1606,6 +2302,13 @@ class Game {
             }
 
             const nextWave = result.nextWave;
+
+            // Special case: If we just completed wave 41 (Smith defeated), trigger victory
+            if (this.waveNumber === 41) {
+                console.log('Smith defeated! Victory achieved!');
+                this.victory();
+                return;
+            }
 
             if (this.waveNumber >= this.totalWaves) {
                 this.victory();
@@ -1750,6 +2453,11 @@ class Game {
                 if (bullet.lifeRemaining <= 0) return false;
             }
 
+                // Apply gravity to bomb projectiles for arc effect
+                if (bullet.isBomb && bullet.gravity) {
+                    bullet.vy = Math.min(bullet.vy + bullet.gravity, bullet.maxFallSpeed || 2);
+                }
+
             // Ricochet bullets off walls
             if (bullet.ricochet && bullet.isPlayer) {
                 if (bullet.x <= 0 || bullet.x + bullet.width >= this.width) {
@@ -1848,7 +2556,6 @@ class Game {
                 if (bullet.target) {
                     // Check if target still exists in the game
                     const targetStillExists = this.enemies.includes(bullet.target) ||
-                        this.shooters.includes(bullet.target) ||
                         this.tanks.includes(bullet.target) ||
                         this.sprinters.includes(bullet.target) ||
                         this.bosses.includes(bullet.target);
@@ -1874,55 +2581,18 @@ class Game {
                 bullet.x > -50 && bullet.x < this.width + 50;
         });
 
-        // Update enemies
-        this.enemies = this.enemies.filter(enemy => {
-            if ((enemy.stunTimer || 0) > 0) {
-                enemy.stunTimer -= deltaTime;
-            } else {
-                enemy.update(deltaTime);
-            }
-            return enemy.hp > 0;
+        // Update enemies with shared spell effects and wall interactions.
+        this.enemies = this.updateEnemyGroup(this.enemies, deltaTime);
+        this.shooters = this.updateEnemyGroup(this.shooters, deltaTime);
+        this.tanks = this.updateEnemyGroup(this.tanks, deltaTime);
+        this.sprinters = this.updateEnemyGroup(this.sprinters, deltaTime);
+
+        this.friendlySummons = this.friendlySummons.filter(summon => {
+            summon.update(deltaTime);
+            return summon.hp > 0;
         });
 
-        // Update shooters
-        this.shooters = this.shooters.filter(shooter => {
-            if ((shooter.stunTimer || 0) > 0) {
-                shooter.stunTimer -= deltaTime;
-            } else {
-                shooter.update(deltaTime);
-            }
-            return shooter.hp > 0;
-        });
-
-        // Update tanks
-        this.tanks = this.tanks.filter(tank => {
-            if ((tank.stunTimer || 0) > 0) {
-                tank.stunTimer -= deltaTime;
-            } else {
-                tank.update(deltaTime);
-            }
-            return tank.hp > 0;
-        });
-
-        // Update sprinters
-        this.sprinters = this.sprinters.filter(sprinter => {
-            if ((sprinter.stunTimer || 0) > 0) {
-                sprinter.stunTimer -= deltaTime;
-            } else {
-                sprinter.update(deltaTime);
-            }
-            return sprinter.hp > 0;
-        });
-
-        // Update enemies
-        this.bosses = this.enemies.filter(boss => {
-            if ((boss.stunTimer || 0) > 0) {
-                boss.stunTimer -= deltaTime;
-            } else {
-                boss.update(deltaTime);
-            }
-            return boss.hp > 0;
-        });
+        this.bosses = this.updateEnemyGroup(this.bosses, deltaTime);
 
 
         // Update particles
@@ -1946,6 +2616,57 @@ class Game {
     }
 
     checkCollisions() {
+        const damageEnemyFromSummon = (enemyList, summon, expReward, giveMoney = true) => {
+            for (let i = enemyList.length - 1; i >= 0; i--) {
+                const enemy = enemyList[i];
+                if (!enemy || enemy.hp <= 0) continue;
+                if (!this.checkCollision(summon, enemy)) continue;
+
+                enemy.takeDamage ? enemy.takeDamage(summon.damage) : (enemy.hp -= summon.damage);
+                summon.hp -= 1;
+                this.createExplosion(
+                    enemy.x + (enemy.width || 0) / 2,
+                    enemy.y + (enemy.height || 0) / 2
+                );
+
+                if (enemy.hp <= 0) {
+                    if (giveMoney) {
+                        this.money += enemy.worth || 0;
+                    }
+                    this.addExp(expReward);
+                    enemyList.splice(i, 1);
+                }
+
+                if (summon.hp <= 0) {
+                    this.createExplosion(
+                        summon.x + summon.width / 2,
+                        summon.y + summon.height / 2
+                    );
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        for (let i = this.friendlySummons.length - 1; i >= 0; i--) {
+            const summon = this.friendlySummons[i];
+            if (!summon || summon.hp <= 0) {
+                this.friendlySummons.splice(i, 1);
+                continue;
+            }
+
+            let summonConsumed = false;
+            summonConsumed = summonConsumed || damageEnemyFromSummon(this.enemies, summon, 5, true);
+            summonConsumed = summonConsumed || damageEnemyFromSummon(this.shooters, summon, 12, true);
+            summonConsumed = summonConsumed || damageEnemyFromSummon(this.tanks, summon, 25, true);
+            summonConsumed = summonConsumed || damageEnemyFromSummon(this.sprinters, summon, 35, true);
+            summonConsumed = summonConsumed || damageEnemyFromSummon(this.bosses, summon, 100, true);
+
+            if (summonConsumed || summon.hp <= 0) {
+                this.friendlySummons.splice(i, 1);
+            }
+        }
+
         const getTowerAdjustedDamage = (bullet, target) => {
             let damage = bullet.damage || 1;
             if (target.reinforced && !bullet.damageReinforced) {
@@ -1954,11 +2675,132 @@ class Game {
             return damage;
         };
 
+        const getBeamLineForBullet = (bullet) => {
+            if (!bullet || !bullet.isRailBeam) return null;
+
+            const centerX = bullet.x + (bullet.width || 0) / 2;
+            const centerY = bullet.y + (bullet.height || 0) / 2;
+            const velocityLength = Math.hypot(bullet.vx || 0, bullet.vy || 0) || 1;
+            const dirX = (bullet.vx || 0) / velocityLength;
+            const dirY = (bullet.vy || 0) / velocityLength;
+
+            const thickness = bullet.beamThickness || (bullet.isMikuBeam ? 18 : 6);
+
+            if (bullet.isMikuBeam) {
+                const source = bullet.sourceTower;
+                const startX = source ? (source.x + source.width / 2) : centerX;
+                const startY = source ? (source.y + source.height / 2) : centerY;
+                const fullScreenLength = Math.hypot(this.width, this.height) + 180;
+                return {
+                    startX,
+                    startY,
+                    endX: startX + dirX * fullScreenLength,
+                    endY: startY + dirY * fullScreenLength,
+                    width: thickness
+                };
+            }
+
+            const beamLength = bullet.beamLength || 120;
+            return {
+                startX: centerX - dirX * beamLength,
+                startY: centerY - dirY * beamLength,
+                endX: centerX,
+                endY: centerY,
+                width: thickness
+            };
+        };
+
+        const canBeamDamageTarget = (bullet, target) => {
+            if (!bullet || !bullet.isRailBeam) return true;
+            if (!bullet._beamHitTargets) {
+                bullet._beamHitTargets = new WeakSet();
+            }
+            if (bullet._beamHitTargets.has(target)) {
+                return false;
+            }
+            bullet._beamHitTargets.add(target);
+            return true;
+        };
+
+        const bulletHitsEnemy = (bullet, enemy) => {
+            if (!bullet || !enemy) return false;
+            if (bullet.isRailBeam) {
+                const beamLine = getBeamLineForBullet(bullet);
+                if (!beamLine) return false;
+                return this.checkLineCollision(enemy, beamLine);
+            }
+            return this.checkCollision(bullet, enemy);
+        };
+
+        const spawnRefractionShards = (bullet, target) => {
+            if (!bullet.fromTower || bullet.isRefractionShard) return;
+
+            const sourceTower = bullet.sourceTower;
+            if (!sourceTower || sourceTower.type !== 'railgun') return;
+
+            const splitCount = sourceTower.refractionSplitCount || 0;
+            if (splitCount <= 0) return;
+
+            const originX = target.x + (target.width || 0) / 2;
+            const originY = target.y + (target.height || 0) / 2;
+            const baseAngle = Math.atan2(bullet.vy || 0, bullet.vx || 1);
+            const splitSpread = Math.PI / 3;
+            const splitSpeed = Math.max(0.45, sourceTower.projectileSpeed || 0.8);
+            const splitDamage = Math.max(1, Math.round((bullet.damage || 1) * 0.7));
+
+            for (let s = 0; s < splitCount; s++) {
+                const t = splitCount === 1 ? 0.5 : (s / (splitCount - 1));
+                const angle = baseAngle - splitSpread / 2 + (splitSpread * t);
+
+                const shard = new Bullet(originX, originY, true);
+                shard.width = 4;
+                shard.height = 4;
+                shard.vx = Math.cos(angle) * splitSpeed;
+                shard.vy = Math.sin(angle) * splitSpeed;
+                shard.damage = splitDamage;
+                shard.pierce = 1;
+                shard.fromTower = true;
+                shard.sourceTower = sourceTower;
+                shard.towerColor = bullet.towerColor;
+                shard.damageReinforced = !!bullet.damageReinforced;
+                shard.lifeRemaining = 700;
+                shard.isRefractionShard = true;
+                shard.render = function(ctx) {
+                    ctx.fillStyle = this.towerColor || '#a8d7ff';
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+                this.bullets.push(shard);
+            }
+        };
+
         const applyTowerHitEffects = (bullet, target) => {
             if (!bullet.fromTower) return;
 
+            spawnRefractionShards(bullet, target);
+
+            if (bullet.isWizardIceStorm) {
+                const sx = target.x + (target.width || 0) / 2;
+                const sy = target.y + (target.height || 0) / 2;
+                this.spellZones.push({
+                    type: 'slow',
+                    x: sx,
+                    y: sy,
+                    radius: 70,
+                    multiplier: 0.45,
+                    expiresAt: Date.now() + 3000
+                });
+                this.addSpellAnimation('iceStorm', sx, sy, {
+                    radius: 70,
+                    life: 800,
+                    color: '#90caf9'
+                });
+            }
+
             if (bullet.stunChance && Math.random() < bullet.stunChance) {
-                target.stunTimer = Math.max(target.stunTimer || 0, 800);
+                const stunDuration = bullet.stunDuration || 800;
+                target.stunTimer = Math.max(target.stunTimer || 0, stunDuration);
             }
 
             if (bullet.clusterOnExplosion && (bullet.clusterCount || 0) > 0) {
@@ -1992,9 +2834,66 @@ class Game {
             let hitCount = 0;
 
             // Check vs enemies
-            for (let j = this.enemies.length - 1; j >= 0; j--) {
-                if (this.checkCollision(bullet, this.enemies[j])) {
+                // Handle bomb explosions (bomb projectiles detonate on ANY hit)
+                let shouldSkipRegularCollision = false;
+                if (bullet.isBomb && bullet.explosionArea) {
+                    let bombHit = false;
+                    const explosionX = bullet.x + bullet.width / 2;
+                    const explosionY = bullet.y + bullet.height / 2;
+                    const explosionRadius = bullet.explosionArea;
+
+                    // Apply explosion damage to all enemies within radius
+                    const applyExplosionDamage = (enemyList) => {
+                        for (let j = enemyList.length - 1; j >= 0; j--) {
+                            const enemy = enemyList[j];
+                            if (!enemy || enemy.hp <= 0) continue;
+                        
+                            const ex = enemy.x + (enemy.width || 0) / 2;
+                            const ey = enemy.y + (enemy.height || 0) / 2;
+                            const dx = ex - explosionX;
+                            const dy = ey - explosionY;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                            if (dist <= explosionRadius) {
+                                const damage = getTowerAdjustedDamage(bullet, enemy);
+                                enemy.takeDamage ? enemy.takeDamage(damage) : (enemy.hp -= damage);
+                                applyTowerHitEffects(bullet, enemy);
+                                bombHit = true;
+                            
+                                if (enemy.hp <= 0) {
+                                    this.money += enemy.worth || 0;
+                                    this.addExp(5);
+                                    if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
+                                        this.player.health++;
+                                    }
+                                    enemyList.splice(j, 1);
+                                }
+                            }
+                        }
+                    };
+
+                    // Check all enemy types within explosion radius
+                    applyExplosionDamage(this.enemies);
+                    applyExplosionDamage(this.shooters);
+                    applyExplosionDamage(this.tanks);
+                    applyExplosionDamage(this.sprinters);
+                    applyExplosionDamage(this.bosses);
+
+                    if (bombHit) {
+                        this.createExplosion(explosionX, explosionY);
+                        this.playSound('enemyHit');
+                        this.bullets.splice(i, 1);
+                        shouldSkipRegularCollision = true;
+                    }
+                }
+
+                if (shouldSkipRegularCollision) continue;
+
+                // Check vs enemies
+                for (let j = this.enemies.length - 1; j >= 0; j--) {
+                if (bulletHitsEnemy(bullet, this.enemies[j])) {
                     const enemy = this.enemies[j];
+                    if (!canBeamDamageTarget(bullet, enemy)) continue;
                     const damage = getTowerAdjustedDamage(bullet, enemy);
 
                     // Damage the enemy first
@@ -2021,8 +2920,9 @@ class Game {
 
             // Check vs shooters
             for (let j = this.shooters.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
-                if (this.checkCollision(bullet, this.shooters[j])) {
+                if (bulletHitsEnemy(bullet, this.shooters[j])) {
                     const shooter = this.shooters[j];
+                    if (!canBeamDamageTarget(bullet, shooter)) continue;
                     const damage = getTowerAdjustedDamage(bullet, shooter);
 
                     // Damage the enemy first
@@ -2046,17 +2946,18 @@ class Game {
 
             // Check vs tanks
             for (let j = this.tanks.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
-                if (this.checkCollision(bullet, this.tanks[j])) {
-                    const damage = getTowerAdjustedDamage(bullet, this.tanks[j]);
-                    this.tanks[j].takeDamage(damage);
-                    applyTowerHitEffects(bullet, this.tanks[j]);
+                if (bulletHitsEnemy(bullet, this.tanks[j])) {
+                    const tank = this.tanks[j];
+                    if (!canBeamDamageTarget(bullet, tank)) continue;
+                    const damage = getTowerAdjustedDamage(bullet, tank);
+                    tank.takeDamage(damage);
+                    applyTowerHitEffects(bullet, tank);
                     this.createExplosion(bullet.x, bullet.y);
                     this.playSound('enemyHit');
 
-                    if (this.tanks[j].hp <= 0) {
-                        const tanks = this.tanks[j];
-                        this.createExplosion(this.tanks[j].x, this.tanks[j].y);
-                        this.money += tanks.worth;
+                    if (tank.hp <= 0) {
+                        this.createExplosion(tank.x, tank.y);
+                        this.money += tank.worth;
                         this.tanks.splice(j, 1);
                         this.addExp(25);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -2070,17 +2971,18 @@ class Game {
 
             // Check vs sprinters
             for (let j = this.sprinters.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
-                if (this.checkCollision(bullet, this.sprinters[j])) {
-                    const damage = getTowerAdjustedDamage(bullet, this.sprinters[j]);
-                    this.sprinters[j].takeDamage(damage);
-                    applyTowerHitEffects(bullet, this.sprinters[j]);
+                if (bulletHitsEnemy(bullet, this.sprinters[j])) {
+                    const sprinter = this.sprinters[j];
+                    if (!canBeamDamageTarget(bullet, sprinter)) continue;
+                    const damage = getTowerAdjustedDamage(bullet, sprinter);
+                    sprinter.takeDamage(damage);
+                    applyTowerHitEffects(bullet, sprinter);
                     this.createExplosion(bullet.x, bullet.y);
                     this.playSound('enemyHit');
 
-                    if (this.sprinters[j].hp <= 0) {
-                        const sprinters = this.sprinters[j];
-                        this.createExplosion(this.sprinters[j].x, this.sprinters[j].y);
-                        this.money += sprinters.worth;
+                    if (sprinter.hp <= 0) {
+                        this.createExplosion(sprinter.x, sprinter.y);
+                        this.money += sprinter.worth;
                         this.sprinters.splice(j, 1);
                         this.addExp(35);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -2094,8 +2996,9 @@ class Game {
 
             // Check vs Boss
             for (let j = this.bosses.length - 1; j >= 0; j--) {
-                if (this.checkCollision(bullet, this.bosses[j])) {
+                if (bulletHitsEnemy(bullet, this.bosses[j])) {
                     const boss = this.bosses[j];
+                    if (!canBeamDamageTarget(bullet, boss)) continue;
                     const damage = getTowerAdjustedDamage(bullet, boss);
 
                     // Damage the boss first
@@ -2107,9 +3010,9 @@ class Game {
                     if (boss.hp <= 0) {
                         this.createExplosion(boss.x, boss.y);
                         this.money += boss.worth;
-                        this.enemies.splice(j, 1);
+                        this.bosses.splice(j, 1);
 
-                        this.addExp(5);
+                        this.addExp(150);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health++;
                         }
@@ -2127,12 +3030,52 @@ class Game {
         };
     }
 
+    // Add this after your existing methods in the Game class
+
+    updateBossHealthBar() {
+        const healthBar = document.getElementById('bossHealthBar');
+        const healthFill = document.getElementById('bossHealthFill');
+        const healthText = document.getElementById('bossHealthText');
+
+        // Find Smith boss
+        const smith = this.bosses.find(boss => boss.constructor.name === 'Smith');
+
+        if (smith && smith.isFinalBoss) {
+            // Show health bar
+            healthBar.style.display = 'block';
+
+            // Update health percentage
+            const healthPercent = (smith.hp / smith.maxHp) * 100;
+            healthFill.style.width = healthPercent + '%';
+
+            // Update text
+            healthText.textContent = `${smith.hp} / ${smith.maxHp}`;
+
+            // Change color based on health
+            if (healthPercent > 66) {
+                healthFill.style.background = 'linear-gradient(90deg, #ff4444, #ff0000, #cc0000)';
+            } else if (healthPercent > 33) {
+                healthFill.style.background = 'linear-gradient(90deg, #ffaa00, #ff6600, #ff4400)';
+            } else {
+                healthFill.style.background = 'linear-gradient(90deg, #ff0000, #aa0000, #660000)';
+            }
+        } else {
+            // Hide health bar when no final boss
+            healthBar.style.display = 'none';
+        }
+    }
+
+    hideBossHealthBar() {
+        const healthBar = document.getElementById('bossHealthBar');
+        if (healthBar) {
+            healthBar.style.display = 'none';
+        }
+    }
+
+
     removeEnemyFromArrays(enemy) {
         let index = this.enemies.indexOf(enemy);
         if (index > -1) this.enemies.splice(index, 1);
-
-        index = this.shooters.indexOf(enemy);
-        if (index > -1) this.shooters.splice(index, 1);
 
         index = this.tanks.indexOf(enemy);
         if (index > -1) this.tanks.splice(index, 1);
@@ -2148,8 +3091,6 @@ class Game {
         // Remove all minions
         this.enemies = this.enemies.filter(enemy => { !enemy.minion });
         this.createExplosion(this.enemies.x, this.enemies.y);
-        this.shooters = this.shooters.filter(shooter => !shooter.minion);
-        this.createExplosion(this.shooters.x, this.shooters.y);
         this.tanks = this.tanks.filter(tank => !tank.minion);
         this.createExplosion(this.tanks.x, this.tanks.y);
         this.sprinters = this.sprinters.filter(sprinter => !sprinter.minion);
@@ -2167,6 +3108,7 @@ class Game {
 
         if (this.sheild <= 0) {
             this.gameOver();
+            return;
         }
     }
 
@@ -2188,14 +3130,109 @@ class Game {
         }
     }
 
+    renderSpellEffects(ctx) {
+        const now = Date.now();
+
+        for (let i = 0; i < this.spellZones.length; i++) {
+            const zone = this.spellZones[i];
+            if (!zone || zone.expiresAt <= now || zone.type !== 'slow') continue;
+
+            ctx.save();
+            ctx.fillStyle = 'rgba(140, 180, 200, 0.16)';
+            ctx.strokeStyle = 'rgba(180, 220, 255, 0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        for (let i = 0; i < this.towerBuffs.length; i++) {
+            const buff = this.towerBuffs[i];
+            if (!buff || buff.expiresAt <= now) continue;
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 241, 118, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(buff.x, buff.y, buff.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        for (let i = 0; i < this.trackWalls.length; i++) {
+            const wall = this.trackWalls[i];
+            if (!wall || wall.hp <= 0) continue;
+
+            const hpRatio = Math.max(0, Math.min(1, wall.hp / 18));
+            ctx.save();
+            ctx.fillStyle = '#6d4c41';
+            ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+            ctx.strokeStyle = '#d7ccc8';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(wall.x, wall.y, wall.width, wall.height);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.fillRect(wall.x, wall.y - 6, wall.width, 4);
+            ctx.fillStyle = '#81c784';
+            ctx.fillRect(wall.x, wall.y - 6, wall.width * hpRatio, 4);
+            ctx.restore();
+        }
+
+        for (let i = 0; i < this.spellAnimations.length; i++) {
+            const anim = this.spellAnimations[i];
+            if (!anim || anim.life <= 0) continue;
+
+            const progress = 1 - (anim.life / Math.max(1, anim.maxLife));
+            const alpha = Math.max(0, 1 - progress);
+            const radius = anim.radius * (0.55 + progress * 0.75);
+
+            ctx.save();
+            if (anim.type === 'fog') {
+                ctx.fillStyle = `rgba(176, 190, 197, ${0.18 * alpha})`;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (anim.type === 'iceStorm') {
+                ctx.strokeStyle = `rgba(179, 229, 252, ${0.75 * alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (anim.type === 'doubleStrike') {
+                ctx.strokeStyle = `rgba(255, 241, 118, ${0.7 * alpha})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (anim.type === 'earthquake' || anim.type === 'quakeBreak') {
+                ctx.strokeStyle = `rgba(188, 170, 164, ${0.75 * alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (anim.type === 'arcaneSurge') {
+                ctx.strokeStyle = `rgba(186, 104, 200, ${0.8 * alpha})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(anim.x, anim.y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+    }
+
     async gameOver() {
         this.gameRunning = false;
+        this.hideBossHealthBar(); // Hide boss health bar
         this.playSound('playerDefeat')
         document.getElementById('gameOver').classList.remove('hidden');
     }
 
     async victory() {
         this.gameRunning = false;
+        this.hideBossHealthBar(); // Hide boss health bar
         this.playSound('bossDefeat')
         document.getElementById('victoryMenu').classList.remove('hidden');
     }
@@ -2209,6 +3246,9 @@ class Game {
         const savedInnerShapeIndex = this.player.innerShapeIndex;
         const savedShapeIndex = this.player.shapeIndex;
 
+        // Hide boss health bar
+        this.hideBossHealthBar();
+
         // hasPaid = false;
         this.bullets = [];
         this.lineshots = [];
@@ -2217,14 +3257,19 @@ class Game {
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
+        this.friendlySummons = [];
         this.particles = [];
+        this.spellAnimations = [];
+        this.spellZones = [];
+        this.trackWalls = [];
+        this.towerBuffs = [];
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
         this.storeOpen = false;
         this.exp = 0;
         this.level = 1;
-        this.money = 500;
+        this.money = 9999999;
         this.expToNextLevel = 100;
         this.waveNumber = 1;
         this.waveRequirement = 300;
@@ -2281,6 +3326,12 @@ class Game {
         this.mapManager.renderPaths(this.ctx);
         this.mapManager.renderBase(this.ctx);
         this.mapManager.renderMapName(this.ctx);
+        this.renderSpellEffects(this.ctx);
+
+        if (this.started && this.gameRunning) {
+            this.updateGameUI();
+            this.updateBossHealthBar(); // Add this line
+        }
 
         // Render placed towers (before enemies so they appear beneath)
         this.placedTowers.forEach(tower => tower.render(this.ctx));
@@ -2295,19 +3346,12 @@ class Game {
 
         // Render enemies first
         this.enemies.forEach(enemy => enemy.render(this.ctx));
-        this.shooters.forEach(shooter => shooter.render(this.ctx));
         this.tanks.forEach(tank => tank.render(this.ctx));
         this.sprinters.forEach(sprinter => sprinter.render(this.ctx));
+        this.friendlySummons.forEach(summon => summon.render(this.ctx));
 
         // Render bosses (without walls)
         this.bosses.forEach(boss => boss.render(this.ctx));
-
-        // Render boss walls (before bullets so bullets appear on top)
-        this.bosses.forEach(boss => {
-            if (boss.renderWalls) {  // Check if this boss type has walls
-                boss.renderWalls(this.ctx);
-            }
-        });
 
         // Render bullets (after walls)
         this.bullets.forEach(bullet => bullet.render(this.ctx));
