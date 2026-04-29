@@ -1,5 +1,7 @@
 // Tower classes
 
+const { name } = require("ejs");
+
 const TOWER_TYPES = {
     shooter: {
         name: 'Shooter',
@@ -168,6 +170,14 @@ const TOWER_TYPES = {
         width: 30,
         height: 30,
         image: '/img/grohl.png'
+    }, 
+    oppenheimer: {
+        name: 'Oppenheimer',
+        cost: 1,
+        damage: 9999999,
+        image: '/img/nuke.png',
+        width: 40,
+        height: 40
     }
 };
 

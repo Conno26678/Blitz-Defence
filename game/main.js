@@ -177,10 +177,9 @@ class Game {
         this.gamePaused = false;
         this.gamePausedReason = '';
         this.restartFromPause = false
-        this.smithCutsceneActive = false;
-        this.smithCutsceneResolved = false;
-        this.smithCutsceneEnemy = null;
-        this.smithCutsceneChoice = null;
+        this.gameSpeed = 1;
+        this.smithVictoryTimeout = null;
+        this.smithVictoryPending = false;
 
         // Music setup
         this.backgroundMusic = document.getElementById('backgroundMusic');
@@ -393,31 +392,46 @@ class Game {
         document.getElementById('pauseMenu').classList.remove('hidden');
     }
 
+    updateSpeedButtonUI() {
+        const button = document.getElementById('speedToggleBtn');
+        if (!button) return;
+
+        const isFast = this.gameSpeed === 2;
+        button.textContent = isFast ? 'Speed x2' : 'Speed x1';
+        button.classList.toggle('active', isFast);
+        button.setAttribute('aria-pressed', isFast ? 'true' : 'false');
+    }
+
+    toggleGameSpeed() {
+        this.gameSpeed = this.gameSpeed === 2 ? 1 : 2;
+        this.updateSpeedButtonUI();
+    }
+
     showSmithCutscene(enemy) {
         if (this.smithCutsceneResolved || this.smithCutsceneActive) return;
 
-        console.log('🎬 Smith Cutscene Triggered!');
+        if (this.smithVictoryTimeout) {
+            clearTimeout(this.smithVictoryTimeout);
+            this.smithVictoryTimeout = null;
+        }
+
+        console.log('Smith encounter triggered!');
         this.smithCutsceneActive = true;
         this.smithCutsceneEnemy = enemy || this.bosses.find(boss => boss && boss.isFinalBoss) || null;
         this.smithCutsceneChoice = null;
+        this.smithVictoryPending = false;
         this.gameRunning = false;
         this.hideBossHealthBar();
         this.hideAllMenus();
 
         const dialogue = document.getElementById('smithCutsceneDialogue');
         if (dialogue) {
-            dialogue.textContent = 'Wait. I just wanted you all to do your best and grow as people.';
-            console.log('✓ Dialogue text set');
-        } else {
-            console.error('✗ smithCutsceneDialogue element not found');
+            dialogue.textContent = 'Smith lowers his weapon and waits for your choice.';
         }
 
         const cutscene = document.getElementById('smithCutscene');
         if (cutscene) {
             cutscene.classList.remove('hidden');
-            console.log('✓ Cutscene overlay shown');
-        } else {
-            console.error('✗ smithCutscene element not found');
         }
     }
 
@@ -1073,15 +1087,23 @@ class Game {
         const smithSpareBtn = document.getElementById('smithSpareBtn');
         if (smithSpareBtn) {
             smithSpareBtn.addEventListener('click', () => {
-                void this.resolveSmithCutscene(true);
+                void this.resolveSmithChoice(true);
             });
         }
 
         const smithRefuseBtn = document.getElementById('smithRefuseBtn');
         if (smithRefuseBtn) {
             smithRefuseBtn.addEventListener('click', () => {
-                void this.resolveSmithCutscene(false);
+                void this.resolveSmithChoice(false);
             });
+        }
+
+        const speedToggleBtn = document.getElementById('speedToggleBtn');
+        if (speedToggleBtn) {
+            speedToggleBtn.addEventListener('click', () => {
+                this.toggleGameSpeed();
+            });
+            this.updateSpeedButtonUI();
         }
 
         // Map selection navigation
@@ -1520,11 +1542,17 @@ class Game {
         this.started = false;
         this.gameRunning = false;
         this.gamePaused = false;
+        this.gameSpeed = 1;
         this.showLevelUp = false;
         this.smithCutsceneActive = false;
         this.smithCutsceneResolved = false;
         this.smithCutsceneEnemy = null;
         this.smithCutsceneChoice = null;
+        if (this.smithVictoryTimeout) {
+            clearTimeout(this.smithVictoryTimeout);
+            this.smithVictoryTimeout = null;
+        }
+        this.smithVictoryPending = false;
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
@@ -1544,6 +1572,7 @@ class Game {
             victoryMessage.classList.add('hidden');
         }
         this.showStartMenu();
+        this.updateSpeedButtonUI();
 
         console.log('Should be showing start menu now');
     }
@@ -2035,7 +2064,7 @@ class Game {
             }
 
             if (enemy.isFinalBoss && !this.smithCutsceneActive && !this.smithCutsceneResolved) {
-                console.log('🎬 Smith HP dropped to 0, triggering cutscene...');
+                console.log('Smith HP dropped to 0, showing choice dialog...');
                 this.showSmithCutscene(enemy);
                 return true;
             }
@@ -2446,6 +2475,10 @@ class Game {
             return; // Exit early - no wave to check progress on
         }
 
+        if (this.smithVictoryPending) {
+            return;
+        }
+
         // Count total living enemies
         this.enemiesAlive = this.enemies.length + this.tanks.length + this.sprinters.length + this.bosses.length;
 
@@ -2800,6 +2833,11 @@ class Game {
                 );
 
                 if (enemy.hp <= 0) {
+                    if (enemy.isFinalBoss && !this.smithCutsceneActive && !this.smithCutsceneResolved) {
+                        this.showSmithCutscene(enemy);
+                        return true;
+                    }
+
                     if (giveMoney) {
                         this.money += enemy.worth || 0;
                     }
@@ -3031,6 +3069,11 @@ class Game {
                                 bombHit = true;
                             
                                 if (enemy.hp <= 0) {
+                                    if (enemy.isFinalBoss && !this.smithCutsceneActive && !this.smithCutsceneResolved) {
+                                        this.showSmithCutscene(enemy);
+                                        continue;
+                                    }
+
                                     const bomberKilledBoss = enemyList === this.bosses
                                         && bullet.sourceTower
                                         && bullet.sourceTower.type === 'bomber';
@@ -3189,6 +3232,14 @@ class Game {
                     this.playSound('enemyHit');
 
                     if (boss.hp <= 0) {
+                        if (boss.isFinalBoss && !this.smithCutsceneActive && !this.smithCutsceneResolved) {
+                            this.showSmithCutscene(boss);
+                            hit = true;
+                            hitCount++;
+                            if (hitCount >= bullet.pierce) break;
+                            continue;
+                        }
+
                         const bomberKilledBoss = bullet.sourceTower && bullet.sourceTower.type === 'bomber';
                         if (bomberKilledBoss) {
                             this.playSound('vats');
@@ -3428,6 +3479,11 @@ class Game {
     }
 
     async victory(message = '') {
+        if (this.smithVictoryTimeout) {
+            clearTimeout(this.smithVictoryTimeout);
+            this.smithVictoryTimeout = null;
+        }
+
         this.gameRunning = false;
         this.hideBossHealthBar(); // Hide boss health bar
         this.hideSmithCutscene();
@@ -3440,7 +3496,7 @@ class Game {
         document.getElementById('victoryMenu').classList.remove('hidden');
     }
 
-    async resolveSmithCutscene(spare) {
+    async resolveSmithChoice(spare) {
         if (!this.smithCutsceneActive || this.smithCutsceneResolved) return;
 
         this.smithCutsceneResolved = true;
@@ -3454,7 +3510,18 @@ class Game {
             this.bosses = this.bosses.filter(boss => !boss.isFinalBoss);
         }
 
-        this.hideSmithCutscene();
+        this.smithVictoryPending = true;
+
+        const victoryMessage = spare
+            ? 'You spared Smith. He finally gets the chance to grow.'
+            : 'You chose not to spare Smith. The final boss is gone.';
+
+        const dialogue = document.getElementById('smithCutsceneDialogue');
+        if (dialogue) {
+            dialogue.textContent = spare
+                ? 'Smith lowers his weapon. The battlefield quiets as he walks away.'
+                : 'Smith falls silent. The battlefield waits for the aftermath.';
+        }
 
         const waveCompleteTime = Date.now() - this.waveStartTime;
         const result = await post('/recordGameEvent', {
@@ -3472,11 +3539,11 @@ class Game {
             return;
         }
 
-        const victoryMessage = spare
-            ? 'You spared Smith. He finally gets the chance to grow.'
-            : 'You chose not to spare Smith. The final boss is gone.';
-
-        this.victory(victoryMessage);
+        this.smithVictoryTimeout = setTimeout(() => {
+            this.smithVictoryTimeout = null;
+            this.smithVictoryPending = false;
+            this.victory(victoryMessage);
+        }, 2500);
     }
 
 
@@ -3522,6 +3589,12 @@ class Game {
         this.smithCutsceneResolved = false;
         this.smithCutsceneEnemy = null;
         this.smithCutsceneChoice = null;
+        if (this.smithVictoryTimeout) {
+            clearTimeout(this.smithVictoryTimeout);
+            this.smithVictoryTimeout = null;
+        }
+        this.smithVictoryPending = false;
+        this.gameSpeed = 1;
         this.gameRunning = startImmediately;
         this.started = startImmediately || this.started;
 
@@ -3571,6 +3644,8 @@ class Game {
             this.updateTowerShopUI();
             this.updateTowerUpgradeUI();
         }
+
+        this.updateSpeedButtonUI();
     }
 
     render() {
@@ -3652,7 +3727,7 @@ class Game {
         const deltaTime = currentTime - this.lastTime;
         this.lastTime = currentTime;
 
-        this.update(deltaTime);
+        this.update(deltaTime * this.gameSpeed);
         this.render();
 
         requestAnimationFrame((time) => this.gameLoop(time));
