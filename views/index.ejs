@@ -110,6 +110,9 @@
     <audio id="vats" preload="auto">
         <source src="sfx/vats.mp3" type="audio/mpeg">
     </audio>
+    <audio id="noTeacher" preload="auto">
+        <source src="sfx/noTeacher.mp3" type="audio/mpeg">
+    </audio>
 
     <div id="gameContainer">
         <canvas id="gameCanvas" width="1300" height="800"></canvas>
@@ -305,6 +308,10 @@
         <div id="smithCutscene" class="menu-overlay cutscene-overlay hidden">
             <div class="menu-panel cutscene-panel">
                 <div class="cutscene-label">Smith</div>
+                <div class="cutscene-art">
+                    <img id="smithCutsceneMainImage" class="cutscene-image primary-cutscene-image" src="/img/smith.png" alt="Smith">
+                    <img id="smithCutsceneSideImage" class="cutscene-image hidden" src="/img/prozac.png" alt="Prozac">
+                </div>
                 <div class="dialogue-box">
                     <div class="dialogue-speaker">Smith</div>
                     <div id="smithCutsceneDialogue" class="dialogue-text">Smith lowers his weapon and waits for your choice.</div>

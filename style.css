@@ -460,6 +460,32 @@ label.checkbox {
     margin-bottom: 18px;
 }
 
+.cutscene-art {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.cutscene-image {
+    width: min(30vw, 170px);
+    max-width: 170px;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.primary-cutscene-image {
+    width: min(38vw, 220px);
+    max-width: 220px;
+}
+
 .dialogue-box {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.12);

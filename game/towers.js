@@ -142,14 +142,18 @@ const TOWER_TYPES = {
         height: 30,
         image: '/img/shadowWizard.png'
     },
-    kid: {
+    silly: {
         name: 'Silly Billy',
         cost: 175,
-        damage: 0,
+        damage: 1,
         range: 85,
-        fireRate: 900,
+        fireRate: 1200,
         stunChance: 1,
-        stunDuration: 2000,
+        stunDuration: 2200,
+        stunRadius: 0,
+        poisonDamage: 0,
+        poisonDuration: 0,
+        poisonTickRate: 0,
         width: 30,
         height: 30,
         color: '#f7d36b',
@@ -171,15 +175,16 @@ const TOWER_TYPES = {
     oppenheimer: {
         name: 'Oppenheimer',
         cost: 1,
-        damage: 9999999,
+        damage: 12,
+        range: 120,
+        fireRate: 1500,
+        projectileSpeed: 6,
+        projectileCount: 0,
+        color: '#4a4a4a',
         image: '/img/nuke.png',
         width: 40,
         height: 40,
-        // Per-round reset cost: player must pay this each round to reset the
-        // detonation timer. Default is intentionally high.
-        resetCost: 5000,
-        // How many rounds a reset buys (1 == must pay every round)
-        resetRounds: 1
+        pierce: 1
     }
 };
 
@@ -816,6 +821,90 @@ const TOWER_UPGRADES = {
             }
         }
     ],
+    silly: [
+        {
+            id: 'stickySilly',
+            tier: 1,
+            name: 'Sticky Silly',
+            description: 'Enemies get stuck for longer and nearby enemies get caught in the mess.',
+            cost: 350,
+            image: '/img/sillyBilly.png',
+            apply: (tower) => {
+                tower.stunDuration = Math.max(2800, (tower.stunDuration || 0) + 700);
+                tower.stunRadius = Math.max(tower.stunRadius || 0, 24);
+            }
+        },
+        {
+            id: 'gooSplash',
+            tier: 2,
+            name: 'Goo Splash',
+            description: 'The stuck effect splashes to a wider area around the main target.',
+            cost: 700,
+            image: '/img/sillyBilly.png',
+            apply: (tower) => {
+                tower.stunRadius = (tower.stunRadius || 0) + 18;
+                tower.range += 10;
+            }
+        },
+        {
+            id: 'toxicTickle',
+            tier: 3,
+            name: 'Toxic Tickle',
+            description: 'Adds poison damage over time to every enemy the silly tower sticks.',
+            cost: 1400,
+            image: '/img/sillyBilly.png',
+            apply: (tower) => {
+                tower.poisonDamage = (tower.poisonDamage || 0) + 1;
+                tower.poisonDuration = Math.max(tower.poisonDuration || 0, 3500);
+                tower.poisonTickRate = Math.max(250, (tower.poisonTickRate || 500) - 100);
+            }
+        },
+        {
+            id: 'hazmatHysteria',
+            tier: 4,
+            name: 'Hazmat Hysteria',
+            description: 'More poison damage and a larger stuck radius with a faster firing rhythm.',
+            cost: 2900,
+            image: '/img/sillyBilly.png',
+            apply: (tower) => {
+                tower.poisonDamage = (tower.poisonDamage || 0) + 2;
+                tower.poisonDuration = Math.max(tower.poisonDuration || 0, 5000);
+                tower.stunRadius = (tower.stunRadius || 0) + 24;
+                scaleFireRate(tower, 0.85, 120);
+            }
+        },
+        {
+            id: 'laughingGas',
+            tier: 5,
+            name: 'Laughing Gas',
+            description: 'Enemies stay stuck longer, poison harder, and the radius expands even more.',
+            cost: 5200,
+            image: '/img/sillyBilly.png',
+            apply: (tower) => {
+                tower.stunDuration = Math.max(tower.stunDuration || 0, 4500);
+                tower.stunRadius = (tower.stunRadius || 0) + 20;
+                tower.poisonDamage = (tower.poisonDamage || 0) + 2;
+                tower.poisonTickRate = Math.max(180, (tower.poisonTickRate || 500) - 80);
+            }
+        },
+        {
+            id: 'ultimateSilly',
+            tier: 6,
+            name: 'Ultimate Silly Billy',
+            description: 'Big sticky radius, strong poison, and constant enemy lockdown.',
+            cost: 10000,
+            image: '/img/sillyBilly.png',
+            apply: (tower) => {
+                tower.damage += 2;
+                tower.stunDuration = Math.max(tower.stunDuration || 0, 5200);
+                tower.stunRadius = (tower.stunRadius || 0) + 28;
+                tower.poisonDamage = (tower.poisonDamage || 0) + 3;
+                tower.poisonDuration = Math.max(tower.poisonDuration || 0, 6500);
+                tower.poisonTickRate = Math.max(140, (tower.poisonTickRate || 500) - 120);
+                scaleFireRate(tower, 0.8, 90);
+            }
+        }
+    ],
     grohl: [
         {
             id: 'sacrifice',
@@ -896,6 +985,10 @@ class Tower {
 
         this.stunChance = def.stunChance || 0;
         this.stunDuration = def.stunDuration || 0;
+        this.stunRadius = def.stunRadius || 0;
+        this.poisonDamage = def.poisonDamage || 0;
+        this.poisonDuration = def.poisonDuration || 0;
+        this.poisonTickRate = def.poisonTickRate || 0;
 
         this.fireball = !!def.fireball;
         this.arcaneSurge = !!def.arcaneSurge;
@@ -913,15 +1006,6 @@ class Tower {
         this.currentUpgradeImage = def.image || null;
         this.totalSpent = Number.isFinite(def.cost) ? def.cost : 0;
         this.totalHackedMoney = 0;
-
-        // Oppenheimer-specific state: a per-round detonation countdown
-        if (this.type === 'oppenheimer') {
-            this.opResetCost = def.resetCost || 5000;
-            this.opResetRounds = def.resetRounds || 1;
-            this.roundsUntilDetonation = this.opResetRounds;
-            // Flag set when player pays to reset during the round; cleared on wave load
-            this.opPaidThisRound = false;
-        }
 
         this.fireCooldown = 0;
         this.spellCooldown = this.spellCastRate;
@@ -1089,6 +1173,10 @@ class Tower {
             bullet.damageReinforced = !!this.damageReinforced;
             bullet.stunChance = this.stunChance || 0;
             bullet.stunDuration = this.stunDuration || 0;
+            bullet.stunRadius = this.stunRadius || 0;
+            bullet.poisonDamage = this.poisonDamage || 0;
+            bullet.poisonDuration = this.poisonDuration || 0;
+            bullet.poisonTickRate = this.poisonTickRate || 0;
             bullet.clusterOnExplosion = !!this.clusterOnExplosion;
             bullet.clusterCount = this.clusterCount || 0;
 
@@ -1281,7 +1369,7 @@ class Tower {
         const cy = this.y + this.height / 2;
 
         // Range ring
-        if (this.showRange) {
+        if (this.showRange && Number.isFinite(this.range) && this.range > 0) {
             ctx.beginPath();
             ctx.arc(cx, cy, this.range, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';

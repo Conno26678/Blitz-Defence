@@ -20,7 +20,7 @@ function hidePayment() {
 }
 
 //Some don't work on intended or just need some touching up before being added to the shop
-const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'gambler', 'bomber', 'grohl', 'oppenheimer']);
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'gambler', 'bomber', 'grohl', 'oppenheimer', 'silly']);
 
 function isTowerShopAvailable(key) {
     return AVAILABLE_TOWER_SHOP_KEYS.has(key);
@@ -180,6 +180,7 @@ class Game {
         this.gameSpeed = 1;
         this.smithVictoryTimeout = null;
         this.smithVictoryPending = false;
+        this.finalBossReachedBase = false;
 
         // Music setup
         this.backgroundMusic = document.getElementById('backgroundMusic');
@@ -218,7 +219,8 @@ class Game {
             fireworks: document.getElementById('fireworks'),
             diceRoll: document.getElementById('diceRoll'),
             war: document.getElementById('war'),
-            vats: document.getElementById('vats')
+            vats: document.getElementById('vats'),
+            noTeacher: document.getElementById('noTeacher')
         }
 
         Object.values(this.soundEffects).forEach(sound => {
@@ -237,8 +239,8 @@ class Game {
         this.waveComplete = false;
         this.totalWaves = this.waveManager.getTotalWaves();
         this.spawnTimer = 0;
-        this.spawnDelay = 250; // 0.25 seconds in milliseconds
-        this.waveStartAllowed = false; // Flag to control wave start button availability
+        this.spawnDelay = 250; 
+        this.waveStartAllowed = false; 
         this.autoStart = false; // Disable auto-starting next wave for manual control
 
         // Multi-track spawning modes
@@ -272,15 +274,15 @@ class Game {
         this.mapManager = new MapManager(this.width, this.height);
 
         // Tower system
-        this.placedTowers = [];          // Tower instances placed on the map
+        this.placedTowers = [];         
         this.selectedTower = null;       // Key from TOWER_TYPES currently selected in shop
-        this.selectedPlacedTower = null; // Currently selected placed tower for upgrades
-        this.towerShopRects = [];        // Clickable rects for the bottom shop panel
-        this.storeOpen = false;          // Right-side store dock visibility
+        this.selectedPlacedTower = null;
+        this.towerShopRects = [];        
+        this.storeOpen = false;          
 
         this.renderer = new GameRenderer(this);
 
-        this.showStartMenu(); // Show start menu initially
+        this.showStartMenu(); 
         this.setupEventListeners();
 
         // Load player customization from server
@@ -343,7 +345,6 @@ class Game {
                 mapCard.classList.add('selected');
             }
 
-            // Updated structure: name first, then image
             mapCard.innerHTML = `
             <div class="map-name">${map.name}</div>
             <img src="${map.image}" alt="${map.name}" class="map-preview-img" 
@@ -367,7 +368,6 @@ class Game {
         this.mapManager.currentMap = this.mapManager.maps[mapIndex];
         this.updateMultiTrackMode();
 
-        // Hide the selection menu and return to start menu
         document.getElementById('mapSelectionMenu').classList.add('hidden');
         this.showStartMenu();
 
@@ -423,6 +423,7 @@ class Game {
         this.gameRunning = false;
         this.hideBossHealthBar();
         this.hideAllMenus();
+        this.setSmithCutsceneArt('smith');
 
         const dialogue = document.getElementById('smithCutsceneDialogue');
         if (dialogue) {
@@ -433,6 +434,67 @@ class Game {
         if (cutscene) {
             cutscene.classList.remove('hidden');
         }
+    }
+
+    setSmithCutsceneArt(choice = 'smith') {
+        const mainImage = document.getElementById('smithCutsceneMainImage');
+        const sideImage = document.getElementById('smithCutsceneSideImage');
+
+        if (!mainImage) return;
+
+        if (choice === 'spare') {
+            mainImage.src = '/img/happySmith.png';
+            mainImage.alt = 'Happy Smith';
+
+            if (sideImage) {
+                sideImage.src = '/img/prozac.png';
+                sideImage.alt = 'Prozac';
+                sideImage.classList.remove('hidden');
+            }
+            return;
+        }
+
+        if (choice === 'refuse') {
+            mainImage.src = '/img/hayden.png';
+            mainImage.alt = 'Hayden';
+
+            if (sideImage) {
+                sideImage.classList.add('hidden');
+            }
+            return;
+        }
+
+        mainImage.src = '/img/smith.png';
+        mainImage.alt = 'Smith';
+
+        if (sideImage) {
+            sideImage.classList.add('hidden');
+        }
+    }
+
+    spawnHaydenBoss(sourceBoss) {
+        const bossSource = sourceBoss || this.smithCutsceneEnemy || this.bosses.find(boss => boss && boss.isFinalBoss) || null;
+        if (!bossSource) return null;
+
+        const hayden = new Hayden(bossSource.x, bossSource.y);
+        hayden.x = bossSource.x;
+        hayden.y = bossSource.y;
+
+        if (bossSource.path) {
+            hayden.setPath(bossSource.path);
+            hayden.currentWaypoint = bossSource.currentWaypoint || hayden.currentWaypoint;
+            hayden.pathProgress = bossSource.pathProgress || hayden.pathProgress;
+        }
+
+        this.bosses.push(hayden);
+        this.playSound('noTeacher');
+        const bossName = document.getElementById('bossName');
+        if (bossName) {
+            bossName.textContent = 'Hayden the True Final Boss';
+            bossName.style.color = '#4da3ff';
+        }
+        this.updateBossHealthBar();
+        return hayden;
     }
 
     hideSmithCutscene() {
@@ -543,6 +605,24 @@ class Game {
             sound.currentTime = 0;
             sound.play().catch(e => console.log('Sound play failed:', e));
         }
+    }
+
+    playLoopingSound(soundName) {
+        if (!this.soundEnabled) return;
+        const sound = this.soundEffects[soundName];
+        if (!sound) return;
+        sound.loop = true;
+        if (sound.paused) {
+            sound.currentTime = 0;
+            sound.play().catch(e => console.log('Sound play failed:', e));
+        }
+    }
+
+    stopSound(soundName) {
+        const sound = this.soundEffects[soundName];
+        if (!sound) return;
+        sound.pause();
+        sound.currentTime = 0;
     }
 
     isMaxUpgradeShotTower(tower) {
@@ -794,28 +874,6 @@ class Game {
         panel.classList.remove('inactive');
 
         const tower = this.selectedPlacedTower;
-        // Special UI for Oppenheimer tower: per-round reset purchase
-        if (tower.type === 'oppenheimer') {
-            const cost = tower.opResetCost || 5000;
-            const roundsLeft = typeof tower.roundsUntilDetonation === 'number' ? tower.roundsUntilDetonation : 0;
-            let bodyHTML = '';
-            if (tower.currentUpgradeImage) {
-                bodyHTML += `<img src="${tower.currentUpgradeImage}" class="upgrade-preview-img" alt="${tower.name}">`;
-            }
-            bodyHTML += `<div class="upgrade-info">
-                <div class="upgrade-name">Reset Countdown</div>
-                <div class="upgrade-description">Pay each round to reset the detonation countdown. Rounds remaining: ${roundsLeft}</div>
-                <div class="upgrade-cost">Cost: $${cost}</div>
-            </div>`;
-
-            body.innerHTML = bodyHTML;
-            upgradeButton.textContent = `Reset Countdown ($${cost})`;
-            upgradeButton.disabled = this.money < cost;
-            upgradeButton.dataset.upgradeId = 'oppenheimer_reset';
-            sellButton.textContent = `Sell ($${sellValue})`;
-            sellButton.disabled = false;
-            return;
-        }
         const nextUpgrades = tower.getAvailableUpgrades ? tower.getAvailableUpgrades() : [];
         const nextUpgrade = nextUpgrades[0];
         const gamblerRollLocked =
@@ -872,19 +930,6 @@ class Game {
     buySelectedTowerUpgrade() {
         const tower = this.selectedPlacedTower;
         if (!tower) return;
-
-        // Special-case: Oppenheimer per-round reset purchase
-        if (tower.type === 'oppenheimer') {
-            const cost = tower.opResetCost || 5000;
-            if (this.money < cost) return;
-            this.money -= cost;
-            tower.opPaidThisRound = true;
-            tower.roundsUntilDetonation = tower.opResetRounds || 1;
-            this.playSound('war');
-            this.updateGameUI();
-            console.log(`Oppenheimer reset purchased. Money left: ${this.money}`);
-            return;
-        }
 
         if (!tower.getAvailableUpgrades || !tower.applyUpgrade) return;
 
@@ -1085,7 +1130,7 @@ class Game {
             });
         }
 
-        // Victory menu buttons (unique IDs)
+        // Victory menu buttons
         const victoryRestartBtn = document.getElementById('victoryRestartBtn');
         if (victoryRestartBtn) {
             victoryRestartBtn.addEventListener('click', async () => {
@@ -1262,7 +1307,6 @@ class Game {
 
             console.log("Loading and starting wave manually via button click");
 
-            // Load the new wave
             this.loadNewWave();
 
             // Enable spawning
@@ -1296,7 +1340,7 @@ class Game {
                 return;
             }
 
-            // Place the tower and deduct cost
+            // Place the tower yo
             const placedTower = new Tower(x, y, this.selectedTower);
             this.placedTowers.push(placedTower);
             this.setSelectedPlacedTower(placedTower);
@@ -1310,17 +1354,14 @@ class Game {
             return;
         }
 
-        // Handle other canvas clicks here if needed
+        // Handle other canvas clicks if needed
         console.log(`Canvas clicked at: ${x}, ${y}`);
     }
 
 
 
 
-    /**
-     * Select or deselect a tower type for placement.
-     * Called by the HTML shop panel buttons.
-     */
+    // Select or deselect a tower type for placement.
     selectTower(key) {
         if (!isTowerShopAvailable(key)) return;
         this.selectedTower = (this.selectedTower === key) ? null : key;
@@ -1408,9 +1449,7 @@ class Game {
         });
     }
 
-    /**
-     * Refresh affordability and selection state on all HTML tower shop cards.
-     */
+    // Refresh affordability and selection state on all HTML tower shop cards.
     updateTowerShopUI() {
         const shop = document.getElementById('towerShop');
         const hint = document.getElementById('towerShopHint');
@@ -1466,10 +1505,6 @@ class Game {
         });
     }
 
-    /**
-     * (Legacy) Canvas-based tower shop — no longer called; HTML panel is used instead.
-     * Kept here in case a canvas fallback is needed.
-     */
     renderTowerShop() {
         const { ctx } = this;
         const types = Object.keys(TOWER_TYPES);
@@ -1590,6 +1625,7 @@ class Game {
             this.smithVictoryTimeout = null;
         }
         this.smithVictoryPending = false;
+        this.finalBossReachedBase = false;
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
@@ -1975,6 +2011,9 @@ class Game {
                     target.hidden = false;
                     if ('isDashing' in target) target.isDashing = false;
                     if ('stunTimer' in target) target.stunTimer = 0;
+                    if ('poisonTimer' in target) target.poisonTimer = 0;
+                    if ('poisonTickTimer' in target) target.poisonTickTimer = 0;
+                    if ('poisonDamage' in target) target.poisonDamage = 0;
                 }
             }
         }
@@ -2087,8 +2126,33 @@ class Game {
         const now = Date.now();
         return enemyList.filter(enemy => {
             if ((enemy.stunTimer || 0) > 0) {
-                enemy.stunTimer -= deltaTime;
-            } else if (!this.handleTrackWallCollision(enemy, deltaTime)) {
+                enemy.stunTimer = Math.max(0, enemy.stunTimer - deltaTime);
+            }
+
+            if ((enemy.poisonTimer || 0) > 0) {
+                enemy.poisonTimer = Math.max(0, enemy.poisonTimer - deltaTime);
+                enemy.poisonTickTimer = Math.max(0, (enemy.poisonTickTimer || 0) - deltaTime);
+
+                while ((enemy.poisonTimer || 0) > 0 && (enemy.poisonTickTimer || 0) <= 0) {
+                    const poisonDamage = Math.max(1, enemy.poisonDamage || 0);
+                    if (enemy.takeDamage) {
+                        enemy.takeDamage(poisonDamage);
+                    } else {
+                        enemy.hp -= poisonDamage;
+                    }
+
+                    enemy.poisonTickTimer += Math.max(120, enemy.poisonTickRate || 500);
+                }
+
+                if ((enemy.poisonTimer || 0) <= 0) {
+                    enemy.poisonTimer = 0;
+                    enemy.poisonTickTimer = 0;
+                    enemy.poisonDamage = 0;
+                    enemy.poisonTickRate = 0;
+                }
+            }
+
+            if ((enemy.stunTimer || 0) <= 0 && !this.handleTrackWallCollision(enemy, deltaTime)) {
                 const speedMultiplier = this.getEnemySpeedMultiplier(enemy, now);
                 const baseSpeed = enemy.speed;
                 enemy.speed = baseSpeed * speedMultiplier;
@@ -2369,32 +2433,6 @@ class Game {
             ...this.sprinters,
             ...this.bosses
         ];
-        // Per-round Oppenheimer logic: require a per-round payment to reset
-        for (let i = 0; i < this.placedTowers.length; i++) {
-            const t = this.placedTowers[i];
-            if (!t || t.type !== 'oppenheimer') continue;
-            if (t.opPaidThisRound) {
-                // Reset purchased this round — set countdown and clear flag
-                t.roundsUntilDetonation = t.opResetRounds || 1;
-                t.opPaidThisRound = false;
-            } else {
-                // No purchase this round — decrement rounds remaining
-                t.roundsUntilDetonation = (t.roundsUntilDetonation || 0) - 1;
-            }
-
-            if ((t.roundsUntilDetonation || 0) <= 0) {
-                console.log('Oppenheimer detonated!');
-                // Large visual effect and wipe
-                for (let e = 0; e < 30; e++) {
-                    const x = Math.random() * this.width;
-                    const y = Math.random() * this.height;
-                    this.createExplosion(x, y);
-                }
-                this.clearAllEnemies();
-                this.gameOver();
-                return; // stop loading the wave
-            }
-        }
 
         this.runHackerRoundHack(allEnemies);
     }
@@ -2534,12 +2572,16 @@ class Game {
     }
 
     async checkWaveProgress() {
+        if (!this.gameRunning) {
+            return;
+        }
+
         // Don't check progress if no wave has been loaded yet
         if (this.totalEnemiesInWave === 0) {
             return; // Exit early - no wave to check progress on
         }
 
-        if (this.smithVictoryPending) {
+        if (this.smithVictoryPending || this.finalBossReachedBase) {
             return;
         }
 
@@ -2565,6 +2607,10 @@ class Game {
                 console.error('Server rejected wave completion:', result.error);
                 alert('Game session ended due to validation error');
                 this.gameOver();
+                return;
+            }
+
+            if (!this.gameRunning || this.finalBossReachedBase) {
                 return;
             }
 
@@ -3052,6 +3098,24 @@ class Game {
 
             spawnRefractionShards(bullet, target);
 
+            const applyStatusToEnemy = (enemy) => {
+                if (!enemy || enemy.hp <= 0) return;
+
+                if (bullet.stunDuration > 0) {
+                    enemy.stunTimer = Math.max(enemy.stunTimer || 0, bullet.stunDuration);
+                }
+
+                if (bullet.poisonDamage > 0 && bullet.poisonDuration > 0) {
+                    enemy.poisonTimer = Math.max(enemy.poisonTimer || 0, bullet.poisonDuration);
+                    enemy.poisonDamage = Math.max(enemy.poisonDamage || 0, bullet.poisonDamage);
+                    enemy.poisonTickRate = Math.max(60, bullet.poisonTickRate || enemy.poisonTickRate || 500);
+                    enemy.poisonTickTimer = Math.min(
+                        enemy.poisonTickTimer || enemy.poisonTickRate,
+                        enemy.poisonTickRate
+                    );
+                }
+            };
+
             if (bullet.isWizardIceStorm) {
                 const sx = target.x + (target.width || 0) / 2;
                 const sy = target.y + (target.height || 0) / 2;
@@ -3071,8 +3135,27 @@ class Game {
             }
 
             if (bullet.stunChance && Math.random() < bullet.stunChance) {
-                const stunDuration = bullet.stunDuration || 800;
-                target.stunTimer = Math.max(target.stunTimer || 0, stunDuration);
+                if ((bullet.stunRadius || 0) > 0) {
+                    const centerX = target.x + (target.width || 0) / 2;
+                    const centerY = target.y + (target.height || 0) / 2;
+                    const allEnemies = this.getAllEnemies();
+
+                    for (let i = 0; i < allEnemies.length; i++) {
+                        const enemy = allEnemies[i];
+                        if (!enemy || enemy.hp <= 0) continue;
+
+                        const ex = enemy.x + (enemy.width || 0) / 2;
+                        const ey = enemy.y + (enemy.height || 0) / 2;
+                        const dx = ex - centerX;
+                        const dy = ey - centerY;
+
+                        if ((dx * dx + dy * dy) <= (bullet.stunRadius * bullet.stunRadius)) {
+                            applyStatusToEnemy(enemy);
+                        }
+                    }
+                } else {
+                    applyStatusToEnemy(target);
+                }
             }
 
             if (bullet.clusterOnExplosion && (bullet.clusterCount || 0) > 0) {
@@ -3330,29 +3413,49 @@ class Game {
         };
     }
 
-    // Add this after your existing methods in the Game class
-
     updateBossHealthBar() {
         const healthBar = document.getElementById('bossHealthBar');
         const healthFill = document.getElementById('bossHealthFill');
         const healthText = document.getElementById('bossHealthText');
+        const bossName = document.getElementById('bossName');
 
-        // Find Smith boss
-        const smith = this.bosses.find(boss => boss.constructor.name === 'Smith');
+        // Active special boss
+        const specialBoss = this.bosses.find(boss => boss && (boss.constructor.name === 'Smith' || boss.isHayden || boss.isFinalBoss));
 
-        if (smith && smith.isFinalBoss) {
-            // Show health bar
+        if (specialBoss) {
+            const isHayden = !!specialBoss.isHayden;
+            const titleText = isHayden ? 'Hayden the True Final Boss' : 'Mr. Smith - The Final Boss';
+            const titleColor = isHayden ? '#4da3ff' : '#ff0000';
+
+            if (bossName) {
+                bossName.textContent = titleText;
+                bossName.style.color = titleColor;
+            }
+
+            // health bar
             healthBar.style.display = 'block';
+            healthBar.style.borderColor = titleColor;
+            healthBar.style.boxShadow = isHayden
+                ? '0 0 20px rgba(77, 163, 255, 0.5)'
+                : '0 0 20px rgba(255, 0, 0, 0.5)';
 
-            // Update health percentage
-            const healthPercent = (smith.hp / smith.maxHp) * 100;
+            // Update health 
+            const healthPercent = (specialBoss.hp / specialBoss.maxHp) * 100;
             healthFill.style.width = healthPercent + '%';
 
             // Update text
-            healthText.textContent = `${smith.hp} / ${smith.maxHp}`;
+            healthText.textContent = `${specialBoss.hp} / ${specialBoss.maxHp}`;
 
             // Change color based on health
-            if (healthPercent > 66) {
+            if (isHayden) {
+                if (healthPercent > 66) {
+                    healthFill.style.background = 'linear-gradient(90deg, #9ad8ff, #4da3ff, #2563eb)';
+                } else if (healthPercent > 33) {
+                    healthFill.style.background = 'linear-gradient(90deg, #6fbfff, #3b82f6, #1d4ed8)';
+                } else {
+                    healthFill.style.background = 'linear-gradient(90deg, #4da3ff, #2563eb, #123a8a)';
+                }
+            } else if (healthPercent > 66) {
                 healthFill.style.background = 'linear-gradient(90deg, #ff4444, #ff0000, #cc0000)';
             } else if (healthPercent > 33) {
                 healthFill.style.background = 'linear-gradient(90deg, #ffaa00, #ff6600, #ff4400)';
@@ -3536,6 +3639,11 @@ class Game {
 
     async gameOver() {
         this.gameRunning = false;
+        this.smithVictoryPending = false;
+        if (this.smithVictoryTimeout) {
+            clearTimeout(this.smithVictoryTimeout);
+            this.smithVictoryTimeout = null;
+        }
         this.hideBossHealthBar(); // Hide boss health bar
         this.hideSmithCutscene();
         this.playSound('playerDefeat')
@@ -3574,40 +3682,59 @@ class Game {
             this.bosses = this.bosses.filter(boss => !boss.isFinalBoss);
         }
 
-        this.smithVictoryPending = true;
-
-        const victoryMessage = spare
-            ? 'You spared Smith. He finally gets the chance to grow.'
-            : 'You chose not to spare Smith. The final boss is gone.';
-
         const dialogue = document.getElementById('smithCutsceneDialogue');
-        if (dialogue) {
-            dialogue.textContent = spare
-                ? 'Smith lowers his weapon. The battlefield quiets as he walks away.'
-                : 'Smith falls silent. The battlefield waits for the aftermath.';
+
+        if (spare) {
+            this.smithVictoryPending = true;
+            this.setSmithCutsceneArt('spare');
+
+            if (dialogue) {
+                dialogue.textContent = 'Smith relaxes after taking his doctor prescription. Everyone gets a free day and we all reflect on our day.';
+            }
+
+            const victoryMessage = 'You spared Smith. He reflected on his actions and gave you a free day.';
+            const waveCompleteTime = Date.now() - this.waveStartTime;
+            const result = await post('/recordGameEvent', {
+                eventType: 'WAVE_COMPLETE',
+                data: {
+                    waveNumber: this.waveNumber,
+                    timeTaken: waveCompleteTime,
+                }
+            });
+
+            if (!result.ok) {
+                console.error('Server rejected wave completion:', result.error);
+                alert('Game session ended due to validation error');
+                this.gameOver();
+                return;
+            }
+
+            this.smithVictoryTimeout = setTimeout(() => {
+                this.smithVictoryTimeout = null;
+                this.smithVictoryPending = false;
+                this.victory(victoryMessage);
+            }, 2500);
+            return;
         }
 
-        const waveCompleteTime = Date.now() - this.waveStartTime;
-        const result = await post('/recordGameEvent', {
-            eventType: 'WAVE_COMPLETE',
-            data: {
-                waveNumber: this.waveNumber,
-                timeTaken: waveCompleteTime,
-            }
-        });
+        this.smithVictoryPending = false;
+        this.setSmithCutsceneArt('refuse');
 
-        if (!result.ok) {
-            console.error('Server rejected wave completion:', result.error);
-            alert('Game session ended due to validation error');
-            this.gameOver();
-            return;
+        if (dialogue) {
+            dialogue.textContent = 'Smith holds back. Hayden bursts in and the no teacher chaos starts.';
+        }
+
+        const hayden = this.spawnHaydenBoss(smith);
+        if (hayden) {
+            this.smithCutsceneEnemy = hayden;
         }
 
         this.smithVictoryTimeout = setTimeout(() => {
             this.smithVictoryTimeout = null;
-            this.smithVictoryPending = false;
-            this.victory(victoryMessage);
-        }, 2500);
+            this.hideSmithCutscene();
+            this.gameRunning = true;
+            this.updateBossHealthBar();
+        }, 1200);
     }
 
 
@@ -3658,6 +3785,7 @@ class Game {
             this.smithVictoryTimeout = null;
         }
         this.smithVictoryPending = false;
+        this.finalBossReachedBase = false;
         this.gameSpeed = 1;
         this.gameRunning = startImmediately;
         this.started = startImmediately || this.started;
