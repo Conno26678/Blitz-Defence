@@ -964,7 +964,7 @@ class Smith {
     }
 
     update(deltaTime) {
-        // Smith doesn't get enhanced properties - he's already terrifying enough
+        // Smith doesn't get enhanced properties
         this.followPath(deltaTime);
     }
 

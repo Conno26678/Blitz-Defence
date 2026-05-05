@@ -34,11 +34,14 @@ const TOWER_TYPES = {
         range: 1000,
         fireRate: 3000,
         color: '#2196F3',
+        image: '/img/miku.png',
         projectileCount: 1, 
         projectileSpeed: 0.8,
         width: 30,
         height: 30,
-        image: '/img/miku.png'
+        stunRadius: 20,
+        projectileCount: 1,
+        projectileSpeed: 1,
     },
     hacker: {
         name: 'Hacker',
@@ -150,7 +153,9 @@ const TOWER_TYPES = {
         fireRate: 1200,
         stunChance: 1,
         stunDuration: 2200,
-        stunRadius: 0,
+        stunRadius: 20,
+        projectileCount: 1,
+        projectileSpeed: 1,
         poisonDamage: 0,
         poisonDuration: 0,
         poisonTickRate: 0,
@@ -184,7 +189,9 @@ const TOWER_TYPES = {
         image: '/img/nuke.png',
         width: 40,
         height: 40,
-        pierce: 1
+        pierce: 1,
+        countdownDuration: 180000,
+        countdownResetCost: 500
     }
 };
 
@@ -935,9 +942,11 @@ function getTowerImage(src) {
 }
 
 class Tower {
-    constructor(x, y, type) {
+    constructor(x, y, type, game = null) {
         const def = TOWER_TYPES[type];
         if (!def) throw new Error(`Unknown tower type: ${type}`);
+
+        this.game = game;
 
         // Center the tower on the placement point
         this.x = x - def.width / 2;
@@ -1006,6 +1015,11 @@ class Tower {
         this.currentUpgradeImage = def.image || null;
         this.totalSpent = Number.isFinite(def.cost) ? def.cost : 0;
         this.totalHackedMoney = 0;
+
+        this.countdownDuration = def.countdownDuration || 0;
+        this.countdownRemaining = this.countdownDuration;
+        this.countdownResetCost = def.countdownResetCost || 500;
+        this.countdownExpired = false;
 
         this.fireCooldown = 0;
         this.spellCooldown = this.spellCastRate;
@@ -1088,6 +1102,17 @@ class Tower {
     update(deltaTime, enemies) {
         this.fireCooldown = Math.max(0, this.fireCooldown - deltaTime);
 
+        if (this.type === 'oppenheimer' && this.countdownDuration > 0 && !this.countdownExpired) {
+            this.countdownRemaining = Math.max(0, (this.countdownRemaining || this.countdownDuration) - deltaTime);
+            if (this.countdownRemaining <= 0) {
+                this.countdownExpired = true;
+                if (this.game && typeof this.game.gameOver === 'function') {
+                    this.game.gameOver();
+                }
+                return;
+            }
+        }
+
         // Find the closest enemy within range
         this.target = null;
         let closestDist = this.range;
@@ -1119,6 +1144,7 @@ class Tower {
      * @param {Array} bullets - shared game bullets array
      */
     shoot(bullets) {
+        if (this.type === 'oppenheimer') return false;
         if (!this.target || this.fireCooldown > 0) return false;
         const isSentinelBurst = this.type === 'sentinel';
         if (!isSentinelBurst) {
@@ -1364,6 +1390,20 @@ class Tower {
         return true;
     }
 
+    resetCountdown() {
+        if (this.type !== 'oppenheimer' || this.countdownDuration <= 0) return;
+        this.countdownRemaining = this.countdownDuration;
+        this.countdownExpired = false;
+    }
+
+    getCountdownText() {
+        if (this.type !== 'oppenheimer' || this.countdownDuration <= 0) return '';
+        const seconds = Math.ceil((this.countdownRemaining || 0) / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainder = String(seconds % 60).padStart(2, '0');
+        return `${minutes}:${remainder}`;
+    }
+
     render(ctx) {
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;
@@ -1409,6 +1449,13 @@ class Tower {
             ctx.moveTo(cx, cy);
             ctx.lineTo(cx + Math.cos(angle) * barrelLen, cy + Math.sin(angle) * barrelLen);
             ctx.stroke();
+        }
+
+        if (this.type === 'oppenheimer' && this.countdownDuration > 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.getCountdownText(), cx, this.y - 6);
         }
     }
 }
