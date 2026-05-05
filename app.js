@@ -129,6 +129,7 @@ function isAuthenticated(req, res, next) {
 };
 
 function isAdmin(req, res, next) {
+    // Determine if user has admin privileges based on their Formbar ID
     if (req.session.user && (req.session.token.id === 27 || req.session.token.id === 33 || req.session.token.id === 3 || req.session.token.id === 2
     )) {
         next();
@@ -154,6 +155,7 @@ app.use(express.static(path.join(__dirname)));
 // Route for the game
 app.get('/', isAuthenticated, (req, res) => {
     getCurrentPrice((price) => {
+        // Determine if user has admin privileges based on their Formbar ID
         const isAdmin = req.session.token.id === 27 || req.session.token.id === 33 || req.session.token.id === 3 || req.session.token.id === 2;
         res.render('index', {
             gamePrice: price,
@@ -176,9 +178,9 @@ app.get('/login', (req, res) => {
             if (err) {
                 return console.log(err.message);
             }
-            
+
             // Always update the fbID (in case user already existed)
-            db.run('UPDATE users SET fbID = ? WHERE username = ?', [tokenData.id, tokenData.displayName], function(updateErr) {
+            db.run('UPDATE users SET fbID = ? WHERE username = ?', [tokenData.id, tokenData.displayName], function (updateErr) {
                 if (updateErr) {
                     console.log('Error updating fbID:', updateErr.message);
                 } else {
@@ -233,22 +235,22 @@ app.get('/loadCustomization', isAuthenticated, (req, res) => {
 app.get('/debug/myuser', isAuthenticated, (req, res) => {
     const userId = req.session.token.id;
     const username = req.session.user;
-    
+
     console.log(`Debug: Looking for user with ID: ${userId}, username: ${username}`);
-    
+
     // Check by ID
     db.get('SELECT * FROM users WHERE fbID = ?', [userId], (err, rowById) => {
         if (err) {
             return res.json({ error: err.message });
         }
-        
+
         // Also check by username
         db.get('SELECT * FROM users WHERE username = ?', [username], (err2, rowByUsername) => {
             if (err2) {
                 return res.json({ error: err2.message });
             }
-            
-            res.json({ 
+
+            res.json({
                 searchedUserId: userId,
                 searchedUsername: username,
                 foundById: rowById || null,
@@ -411,11 +413,11 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
         const data = {
             from: userId,
-            to: 1, // Replace with 46 when running official server
+            to: 1, // Replace with proper formbar ID or Pog Pool ID
             amount: currentPrice,
             pin: parseInt(pin),
             reason: 'Game Entry Fee',
-            // pool: 'true' //uncomment for official server use
+            // pool: 'true' //uncomment when paying to pog pool instead of formbar account
         };
 
         console.log('Processing payment:', data);

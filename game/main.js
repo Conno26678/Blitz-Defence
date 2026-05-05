@@ -193,6 +193,7 @@ class Game {
         this.gamePaused = false;
         this.gamePausedReason = '';
         this.restartFromPause = false
+        this.endlessMode = false;
 
         // Music setup
         this.backgroundMusic = document.getElementById('backgroundMusic');
@@ -1209,15 +1210,17 @@ class Game {
             });
         }
 
-        const bossBtn = document.getElementById('bossBtn');
-        if (bossBtn) {
-            bossBtn.addEventListener('click', () => {
-                console.log('Boss button clicked');
+        const endlessBtn = document.getElementById('endlessBtn');
+        if (endlessBtn) {
+            endlessBtn.addEventListener('click', () => {
+                console.log('Endless mode activated!');
                 document.getElementById('victoryMenu').classList.add('hidden');
-                this.waveNumber = 41;
+                this.endlessMode = true;
+                this.waveNumber = 41; // Start endless mode
                 this.loadNewWave();
                 this.started = true;
                 this.gameRunning = true;
+                this.waveStartAllowed = true;
             });
         }
 
@@ -2163,7 +2166,6 @@ class Game {
     getAllEnemies() {
         return [
             ...this.enemies,
-            ...this.shooters,
             ...this.tanks,
             ...this.sprinters,
             ...this.bosses
@@ -2478,14 +2480,14 @@ class Game {
     }
 
     loadNewWave() {
-        console.log(`Loading wave ${this.waveNumber} `);
-
         this.currentWave = this.waveManager.getWave(this.waveNumber);
         this.currentWaveIndex = 0;
         this.enemiesSpawned = 0;
         this.totalEnemiesInWave = this.currentWave.length;
         this.waveComplete = false;
-
+        
+        console.log(`Loading wave ${this.waveNumber}, ${this.totalEnemiesInWave} enemies`);
+        
         // Slightly accelerate spawn pacing as waves increase to preserve the
         // existing curve while increasing pressure.
         const paceBonus = Math.floor((this.waveNumber - 1) * 3.5);
@@ -2579,8 +2581,12 @@ class Game {
         // Center enemy on path
         enemy.x = spawnPos.x - enemy.width / 2;
         enemy.y = spawnPos.y - enemy.height / 2;
-
         enemy.setPath(pathWaypoints);
+
+        // Apply endless mode scaling BEFORE enhancements
+        if (this.waveNumber > 40) {
+            applyEndlessScaling(enemy, this.waveNumber);
+        }
 
         // Don't apply enhancements to Smith - he's already perfect
         if (EnemyClass.name !== 'Smith') {
@@ -2593,8 +2599,6 @@ class Game {
 
         this.enemiesSpawned++;
         this.enemiesAlive++;
-
-        console.log(`Spawned ${EnemyClass.name} on ${pathName} path(${this.enemiesSpawned} / ${this.totalEnemiesInWave})`);
     }
 
     getCricutPathForEnemy() {
@@ -2628,7 +2632,7 @@ class Game {
     async checkWaveProgress() {
         // Don't check progress if no wave has been loaded yet
         if (this.totalEnemiesInWave === 0) {
-            return; // Exit early - no wave to check progress on
+            return;
         }
 
         // Count total living enemies
@@ -2640,63 +2644,85 @@ class Game {
 
             const waveCompleteTime = Date.now() - this.waveStartTime;
 
-            if (this.waveNumber === 41) {
-                console.log('Smith defeated! Recording boss victory...');
+            // Check if this is the first completion of wave 40 (offer endless mode)
+            if (this.waveNumber === 40 && !this.endlessMode) {
+                console.log('Wave 40 completed! Offering endless mode...');
+                this.victory(); // Show victory screen with endless mode option
+                return;
+            }
+
+            // Handle Smith defeats in endless mode (every 100 waves after 40)
+            if (this.endlessMode && this.waveNumber > 40 && (this.waveNumber - 40) % 100 === 0) {
+                console.log(`Smith defeated on endless wave ${this.waveNumber - 40} (actual wave ${this.waveNumber})!`);
+                this.playSound('bossDefeat');
 
                 // Record boss defeat on server
-                const bossResult = await post('/recordBossDefeat', {
-                    waveNumber: this.waveNumber,
-                    timeTaken: waveCompleteTime
-                })
+                try {
+                    const bossResult = await post('/recordBossDefeat', {
+                        waveNumber: this.waveNumber,
+                        timeTaken: waveCompleteTime
+                    });
 
-                if (bossResult.ok) {
-                    console.log('Boss defeat recorded successfully.')
-                    alert('Congratulations! You have defeated Smith and completed the game!');
+                    if (bossResult.ok) {
+                        console.log('Endless Smith defeat recorded successfully.');
+                    }
+                } catch (error) {
+                    console.log('Boss defeat recording failed:', error);
                 }
-
-                this.victory();
-                return;
             }
 
-            // Report to server for validation
-            const result = await post('/recordGameEvent', {
-                eventType: 'WAVE_COMPLETE',
-                data: {
-                    waveNumber: this.waveNumber,
-                    timeTaken: waveCompleteTime,
-                }
-            });
-
-            if (!result.ok) {
-                console.error('Server rejected wave completion:', result.error);
-                alert('Game session ended due to validation error');
-                this.gameOver();
-                return;
-            }
-
-            const nextWave = result.nextWave;
-
-            // Special case: If we just completed wave 41 (Smith defeated), trigger victory
-            if (this.waveNumber === 41) {
-                console.log('Smith defeated! Victory achieved!');
-                this.victory();
-                return;
-            }
-
-            if (this.waveNumber >= this.totalWaves) {
-                this.victory();
-                return;
-            }
-
-            // Normal wave transition
-            this.waveNumber = nextWave;
-            this.waveStartAllowed = true; // Disable until next wave is loaded
+            // Continue with normal wave progression
+            this.waveNumber++;
+            this.waveStartAllowed = true;
             this.waveComplete = true;
             this.waveStartTime = Date.now();
 
             this.currentWave = [];
             this.totalEnemiesInWave = 0;
             this.enemiesSpawned = 0;
+
+            // Only report to server for waves 1-40
+            if (!this.endlessMode) {
+                const result = await post('/recordGameEvent', {
+                    eventType: 'WAVE_COMPLETE',
+                    data: {
+                        waveNumber: this.waveNumber - 1, // Report the completed wave
+                        timeTaken: waveCompleteTime,
+                    }
+                });
+
+                if (!result.ok) {
+                    console.error('Server rejected wave completion:', result.error);
+                    alert('Game session ended due to validation error');
+                    this.gameOver();
+                    return;
+                }
+
+
+                const nextWave = result.nextWave;
+
+                // Special case: If we just completed wave 41 (Smith defeated), trigger victory
+                if (this.waveNumber === 41) {
+                    console.log('Smith defeated! Victory achieved!');
+                    this.victory();
+                    return;
+                }
+
+                if (this.waveNumber >= this.totalWaves) {
+                    this.victory();
+                    return;
+                }
+
+                // Normal wave transition
+                this.waveNumber = nextWave;
+                this.waveStartAllowed = true; // Disable until next wave is loaded
+                this.waveComplete = true;
+                this.waveStartTime = Date.now();
+
+                this.currentWave = [];
+                this.totalEnemiesInWave = 0;
+                this.enemiesSpawned = 0;
+            }
         }
     }
 
@@ -3653,6 +3679,7 @@ class Game {
         this.gamePausedReason = '';
         this.gameRunning = startImmediately;
         this.started = startImmediately || this.started;
+        this.endlessMode = false;
 
         // Stop Grohl music and unlock audio
         this.stopAllGrohlMusic();
