@@ -149,19 +149,29 @@ class WaveManager {
             return this.composeWave(counts);
         }
 
-        // Phase 6 (41+): Endless mode
-        if (wave >= 41) {
-            return this.buildEndlessWave(wave);
+        // Phase 6 (41): Final boss
+        if (wave === 41) {
+            const counts = {
+                enemy1: 0,
+                enemy2: 0,
+                enemy3: 0,
+                tank1: 0,
+                tank2: 0,
+                tank3: 0,
+                sprinter1: 0,
+                sprinter2: 0,
+                sprinter3: 0,
+                boss1: 0,
+                boss2: 0,
+                boss3: 0,
+                smith: 1
+            };
+            return this.composeWave(counts);
         }
     }
 
     getWave(waveNumber) {
-        if (waveNumber <= 40) {
-            return this.waves[waveNumber] || this.waves[1]; // Default to wave 1 if not found\
-        }
-
-        // For endless mode (41+), generate on demand
-        return this.buildEndlessWave(waveNumber);
+        return this.waves[waveNumber] || this.waves[1]; // Default to wave 1 if not found
     }
 
     hasWave(waveNumber) {
@@ -170,63 +180,5 @@ class WaveManager {
 
     getTotalWaves() {
         return this.maxWave - 1;
-    }
-
-    buildEndlessWave(wave) {
-        const endlessWave = wave; // Keep absolute wave numbering for Smith
-        const tierIncrease = Math.floor((endlessWave - 40) / 10);
-
-        // 🎯 SMITH SPAWNS ALONE - Check this FIRST
-        if (endlessWave % 100 === 0) {
-            return this.composeWave({
-                enemy1: 0, enemy2: 0, enemy3: 0,
-                tank1: 0, tank2: 0, tank3: 0,
-                sprinter1: 0, sprinter2: 0, sprinter3: 0,
-                boss1: 0, boss2: 0, boss3: 0,
-                smith: 1  // Only Smith spawns
-            });
-        }
-
-        // Normal endless wave scaling (when Smith is NOT spawning)
-        const counts = {
-            // Phase out basic enemies completely
-            enemy1: 0,
-
-            // Enemy2: Start at 6, reduce by 1 every tier, min 0
-            enemy2: Math.max(0, 6 - tierIncrease),
-
-            // Enemy3: Start at 8, increase by 1 every tier  
-            enemy3: 8 + tierIncrease,
-
-            // Tank1: Start at 3, reduce by 1 every 2 tiers, min 0
-            tank1: Math.max(0, 3 - Math.floor(tierIncrease / 2)),
-
-            // Tank2: Start at 4, stay constant for first few tiers, then increase
-            tank2: 4 + Math.max(0, tierIncrease - 2),
-
-            // Tank3: Start at 2, increase by 1 every tier
-            tank3: 2 + tierIncrease,
-
-            // Sprinter1: Start at 2, reduce by 1 every 2 tiers, min 0  
-            sprinter1: Math.max(0, 2 - Math.floor(tierIncrease / 2)),
-
-            // Sprinter2: Start at 5, stay constant for first tier, then increase
-            sprinter2: 5 + Math.max(0, tierIncrease - 1),
-
-            // Sprinter3: Start at 3, increase by 1 every tier
-            sprinter3: 3 + tierIncrease,
-
-            // Bosses: Start conservative, increase gradually
-            boss1: Math.max(1, 2 - Math.floor(tierIncrease / 3)), // Phase out slowly
-            boss2: 2 + tierIncrease,                              // Steady increase
-            boss3: 1 + Math.floor(tierIncrease / 2),              // Moderate increase
-
-            smith: 0 // No Smith on regular waves
-        };
-
-        const totalEnemies = Object.values(counts).reduce((a, b) => a + b, 0);
-        console.log(`Endless wave ${endlessWave}: Tier ${tierIncrease}, ${totalEnemies} enemies`);
-
-        return this.composeWave(counts);
     }
 }
