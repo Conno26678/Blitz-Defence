@@ -105,7 +105,7 @@
             <!-- <div id="level">Level: <span id="levelValue">1</span></div>
             <div id="exp">EXP: <span id="expValue">0</span>/<span id="expMaxValue">100</span></div> -->
             <div id="health">Shield: <span id="healthValue">250</span>/<span id="healthMaxValue">250</span></div>
-            <div id="money">Digipogs: <span id="moneyValue">99999</span></div>
+            <div id="money">Digipogs: <span id="moneyValue">500</span></div>
 
             <!-- <div class="progress-container">
                 <div class="progress-bar">
@@ -249,10 +249,11 @@
                 <div class="settings-row">
                     <div class="settings-info">
                         <span class="settings-label">Tooltips</span>
-                        <span class="settings-desc">Coming soon</span>
+                        <span class="settings-desc">Show helpful placement and tower info while you play</span>
                     </div>
                     <div class="toggle-group">
-                        <button class="toggle-btn" id="tooltipsSoonBtn" type="button" disabled>Coming Soon</button>
+                        <button class="toggle-btn" id="tooltipsOffBtn" onclick="setSetting('tooltips', false)">Off</button>
+                        <button class="toggle-btn" id="tooltipsOnBtn" onclick="setSetting('tooltips', true)">On</button>
                     </div>
                 </div>
 
@@ -276,10 +277,9 @@
             <div class="menu-panel">
                 <h1 class="victory-title">Victory!</h1>
                 <div class="menu-buttons">
-                    <!-- <button id="endlessBtn" class="primary-btn">ENDLESS MODE</button> -->
+                    <button id="endlessBtn" class="secondary-btn">ENDLESS MODE</button>
                     <button id="victoryRestartBtn" class="secondary-btn">PLAY AGAIN</button>
                     <button id="victoryMainMenuBtn" class="secondary-btn">MAIN MENU</button>
-                    <button id="bossBtn" class="bossBtn">BOSS?</button>
                 </div>
             </div>
         </div>
@@ -319,7 +319,6 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/game/player.js"></script>
     <script src="/game/enemy.js"></script>
-    <script src="/game/boss.js"></script>
     <script src="/game/game.js"></script>
     <script src="/game/maps.js"></script>
     <script src="/game/towers.js"></script>
@@ -354,6 +353,8 @@
         function _syncToggleUI(s) {
             document.getElementById('waveManualBtn').classList.toggle('active', !s.waveAuto);
             document.getElementById('waveAutoBtn').classList.toggle('active',    s.waveAuto);
+            document.getElementById('tooltipsOnBtn').classList.toggle('active',  s.tooltips !== false);
+            document.getElementById('tooltipsOffBtn').classList.toggle('active', s.tooltips === false);
             document.getElementById('soundOnBtn').classList.toggle('active',     s.sound !== false);
             document.getElementById('soundOffBtn').classList.toggle('active',    s.sound === false);
         }
@@ -364,7 +365,6 @@
         }
 
         function setSetting(key, value) {
-            if (key === 'tooltips') return;
             const s = _loadSettings();
             if (s[key] !== value) _playToggleSound(value);
             s[key] = value;
