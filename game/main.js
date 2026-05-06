@@ -305,17 +305,9 @@ class Game {
         // Tower system
         this.placedTowers = [];          // Tower instances placed on the map
         this.selectedTower = null;       // Key from TOWER_TYPES currently selected in shop
-        this.selectedPlacedTower = null;
-        this.hoveredPlacedTower = null;
-        this.hoveredTowerShopKey = null;
-        this.towerShopRects = [];        
-        this.storeOpen = false;          
-
-        const _initialSettings = (() => {
-            try { return JSON.parse(localStorage.getItem('blitzDefenceSettings') || '{}'); }
-            catch (e) { return {}; }
-        })();
-        this.showTooltips = _initialSettings.tooltips !== false;
+        this.selectedPlacedTower = null; // Currently selected placed tower for upgrades
+        this.towerShopRects = [];        // Clickable rects for the bottom shop panel
+        this.storeOpen = false;          // Right-side store dock visibility
 
         this.renderer = new GameRenderer(this);
 
@@ -429,121 +421,6 @@ class Game {
     showPauseMenu() {
         this.hideAllMenus();
         document.getElementById('pauseMenu').classList.remove('hidden');
-    }
-
-    updateSpeedButtonUI() {
-        const button = document.getElementById('speedToggleBtn');
-        if (!button) return;
-
-        const isFast = this.gameSpeed === 2;
-        button.textContent = isFast ? 'Speed x2' : 'Speed x1';
-        button.classList.toggle('active', isFast);
-        button.setAttribute('aria-pressed', isFast ? 'true' : 'false');
-    }
-
-    toggleGameSpeed() {
-        this.gameSpeed = this.gameSpeed === 2 ? 1 : 2;
-        this.updateSpeedButtonUI();
-    }
-
-    showSmithCutscene(enemy) {
-        if (this.smithCutsceneResolved || this.smithCutsceneActive) return;
-
-        if (this.smithVictoryTimeout) {
-            clearTimeout(this.smithVictoryTimeout);
-            this.smithVictoryTimeout = null;
-        }
-
-        console.log('Smith encounter triggered!');
-        this.smithCutsceneActive = true;
-        this.smithCutsceneEnemy = enemy || this.bosses.find(boss => boss && boss.isFinalBoss) || null;
-        this.smithCutsceneChoice = null;
-        this.smithVictoryPending = false;
-        this.gameRunning = false;
-        this.hideBossHealthBar();
-        this.hideAllMenus();
-        this.setSmithCutsceneArt('smith');
-
-        const dialogue = document.getElementById('smithCutsceneDialogue');
-        if (dialogue) {
-            dialogue.textContent = 'Battered Smith stands infront of his students awaiting your choice.';
-        }
-
-        const cutscene = document.getElementById('smithCutscene');
-        if (cutscene) {
-            cutscene.classList.remove('hidden');
-        }
-    }
-
-    setSmithCutsceneArt(choice = 'smith') {
-        const mainImage = document.getElementById('smithCutsceneMainImage');
-        const sideImage = document.getElementById('smithCutsceneSideImage');
-
-        if (!mainImage) return;
-
-        if (choice === 'spare') {
-            mainImage.src = '/img/happySmith.png';
-            mainImage.alt = 'Happy Smith';
-
-            if (sideImage) {
-                sideImage.src = '/img/prozac.png';
-                sideImage.alt = 'Prozac';
-                sideImage.classList.remove('hidden');
-            }
-            return;
-        }
-
-        if (choice === 'refuse') {
-            mainImage.src = '/img/hayden.png';
-            mainImage.alt = 'Hayden';
-
-            if (sideImage) {
-                sideImage.classList.add('hidden');
-            }
-            return;
-        }
-
-        mainImage.src = '/img/smith.png';
-        mainImage.alt = 'Smith';
-
-        if (sideImage) {
-            sideImage.classList.add('hidden');
-        }
-    }
-
-    spawnHaydenBoss(sourceBoss) {
-        const bossSource = sourceBoss || this.smithCutsceneEnemy || this.bosses.find(boss => boss && boss.isFinalBoss) || null;
-        if (!bossSource) return null;
-
-        const hayden = new Hayden(bossSource.x, bossSource.y);
-        hayden.x = bossSource.x;
-        hayden.y = bossSource.y;
-
-        if (bossSource.path) {
-            hayden.setPath(bossSource.path);
-            hayden.currentWaypoint = bossSource.currentWaypoint || hayden.currentWaypoint;
-            hayden.pathProgress = bossSource.pathProgress || hayden.pathProgress;
-        }
-
-        this.bosses.push(hayden);
-        this.playSound('noTeacher');
-        const bossName = document.getElementById('bossName');
-        if (bossName) {
-            bossName.textContent = 'Hayden the True Final Boss';
-            bossName.style.color = '#4da3ff';
-        }
-        this.updateBossHealthBar();
-        return hayden;
-    }
-
-    hideSmithCutscene() {
-        const cutscene = document.getElementById('smithCutscene');
-        if (cutscene) {
-            cutscene.classList.add('hidden');
-        }
-
-        this.smithCutsceneActive = false;
-        this.smithCutsceneEnemy = null;
     }
 
     // showLevelUpMenu() {
@@ -1007,9 +884,6 @@ class Game {
         this.placedTowers.forEach(item => {
             if (item) item.showRange = (item === this.selectedPlacedTower);
         });
-        if (tower) {
-            this.hoveredPlacedTower = tower;
-        }
         this.updateTowerUpgradeUI();
     }
 
@@ -1055,24 +929,6 @@ class Game {
         panel.classList.remove('inactive');
 
         const tower = this.selectedPlacedTower;
-        if (tower.type === 'oppenheimer') {
-            const refuelCost = tower.countdownResetCost || 500;
-            const countdownText = tower.getCountdownText ? tower.getCountdownText() : '0:00';
-
-            body.innerHTML = `<div class="upgrade-info">
-                <div class="upgrade-name">Nuclear Countdown</div>
-                <div class="upgrade-description">Time remaining: ${countdownText}</div>
-                <div class="upgrade-description">Pay to reset the timer before detonation.</div>
-                <div class="upgrade-cost">Cost: $${refuelCost}</div>
-            </div>`;
-            upgradeButton.textContent = `Refuel ($${refuelCost})`;
-            upgradeButton.disabled = this.money < refuelCost;
-            upgradeButton.dataset.upgradeId = 'resetCountdown';
-            sellButton.textContent = `Sell ($${tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63)})`;
-            sellButton.disabled = false;
-            return;
-        }
-
         const nextUpgrades = tower.getAvailableUpgrades ? tower.getAvailableUpgrades() : [];
         const nextUpgrade = nextUpgrades[0];
         const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
@@ -1127,22 +983,7 @@ class Game {
 
     buySelectedTowerUpgrade() {
         const tower = this.selectedPlacedTower;
-        if (!tower) return;
-
-        if (tower.type === 'oppenheimer') {
-            const refuelCost = tower.countdownResetCost || 500;
-            if (this.money < refuelCost) return;
-            if (tower.resetCountdown) {
-                tower.resetCountdown();
-            }
-            this.money -= refuelCost;
-            this.playSound('levelUp');
-            this.updateGameUI();
-            console.log(`Refueled ${tower.name} for $${refuelCost}. Money left: ${this.money}`);
-            return;
-        }
-
-        if (!tower.getAvailableUpgrades || !tower.applyUpgrade) return;
+        if (!tower || !tower.getAvailableUpgrades || !tower.applyUpgrade) return;
 
         const [nextUpgrade] = tower.getAvailableUpgrades();
         if (!nextUpgrade) return;
@@ -1263,7 +1104,6 @@ class Game {
             const rect = this.canvas.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
             this.mouseY = e.clientY - rect.top;
-            this.hoveredPlacedTower = this.selectedTower ? null : this.findTowerAtPoint(this.mouseX, this.mouseY);
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
@@ -1554,8 +1394,8 @@ class Game {
                 return;
             }
 
-            // Place the tower yo
-            const placedTower = new Tower(x, y, this.selectedTower, this);
+            // Place the tower and deduct cost
+            const placedTower = new Tower(x, y, this.selectedTower);
             this.placedTowers.push(placedTower);
             this.setSelectedPlacedTower(placedTower);
             this.money -= def.cost;
@@ -1636,170 +1476,6 @@ class Game {
         }
 
         return parts.join(' | ');
-    }
-
-    formatTowerTooltipStats(tower) {
-        const parts = [];
-
-        if (typeof tower.damage === 'number') {
-            parts.push(`DMG ${tower.damage}`);
-        }
-
-        if (typeof tower.range === 'number') {
-            parts.push(`RNG ${tower.range}`);
-        }
-
-        if (typeof tower.fireRate === 'number' && tower.fireRate > 0) {
-            const seconds = tower.fireRate / 1000;
-            parts.push(`Rate ${Number.isInteger(seconds) ? seconds.toFixed(0) : seconds.toFixed(2)}s`);
-        }
-
-        if (typeof tower.projectileCount === 'number' && tower.projectileCount > 1) {
-            parts.push(`${tower.projectileCount} shots`);
-        }
-
-        return parts.length ? parts.join(' | ') : 'Support tower';
-    }
-
-    getTowerHelpText(key) {
-        const def = TOWER_TYPES[key];
-        if (!def) return '';
-
-        const roleText = {
-            shooter: 'cheap starter damage',
-            blaster: 'burst damage in tight groups',
-            railgun: 'long-range piercing shots',
-            hacker: 'round-start cash generation',
-            gambler: 'randomized buffs and payouts',
-            overlord: 'summoned allies that push lanes',
-            bomber: 'splash damage for clusters',
-            generator: 'shield support for your base',
-            sentinel: 'fast burst fire',
-            wizard: 'spell-based support and control',
-            silly: 'crowd control and poison',
-            grohl: 'a weird little power pick',
-            oppenheimer: 'a risky nuclear finisher'
-        }[key] || 'specialized tower';
-
-        const statsText = this.formatTowerShopStats(def);
-        const costText = Number.isFinite(def.cost) ? `Cost $${def.cost}` : 'No listed cost';
-        return `${def.name}: ${roleText}. ${statsText}. ${costText}.`;
-    }
-
-    getSelectedTowerHelpText() {
-        if (!this.selectedTower) return 'Select a tower to buy, then click the map to place it.';
-        const def = TOWER_TYPES[this.selectedTower];
-        if (!def) return 'Select a tower to buy, then click the map to place it.';
-        const placementCost = Number.isFinite(def.cost) ? `$${def.cost}` : 'the listed cost';
-        return `Selected ${def.name}. Click the map to place it for ${placementCost}.`;
-    }
-
-    getPlacedTowerHelpText(tower) {
-        if (!tower) return '';
-
-        const sellValue = tower.getSellValue ? tower.getSellValue() : Math.floor((tower.cost || 0) * 0.63);
-        const parts = [`${tower.name} Lv ${tower.level || 1}`, this.formatTowerTooltipStats(tower), `Sell $${sellValue}`];
-
-        if (tower.type === 'oppenheimer') {
-            const countdownText = tower.getCountdownText ? tower.getCountdownText() : '0:00';
-            parts.push(`Countdown ${countdownText}`);
-            parts.push('Refuel it from the upgrade panel before it detonates');
-        } else {
-            const nextUpgrade = tower.getAvailableUpgrades ? tower.getAvailableUpgrades()[0] : null;
-            if (nextUpgrade) {
-                parts.push(`Next upgrade: ${nextUpgrade.name} ($${nextUpgrade.cost})`);
-            } else {
-                parts.push('No upgrades left');
-            }
-        }
-
-        return parts.join(' | ');
-    }
-
-    drawTooltipBox(text, x, y, options = {}) {
-        if (!text) return;
-
-        const { ctx } = this;
-        const lines = Array.isArray(text) ? text : String(text).split('\n');
-        const paddingX = options.paddingX || 10;
-        const paddingY = options.paddingY || 8;
-        const lineHeight = options.lineHeight || 15;
-        const font = options.font || '12px Arial';
-        const background = options.background || 'rgba(0, 0, 0, 0.8)';
-        const border = options.border || 'rgba(255, 255, 255, 0.2)';
-        const color = options.color || '#ffffff';
-
-        ctx.save();
-        ctx.font = font;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-
-        const maxLineWidth = lines.reduce((width, line) => Math.max(width, ctx.measureText(line).width), 0);
-        const boxWidth = Math.ceil(maxLineWidth + paddingX * 2);
-        const boxHeight = Math.ceil(lines.length * lineHeight + paddingY * 2);
-
-        let boxX = x + 16;
-        let boxY = y - boxHeight - 14;
-
-        if (boxX + boxWidth > this.width - 8) {
-            boxX = this.width - boxWidth - 8;
-        }
-
-        if (boxY < 8) {
-            boxY = y + 16;
-        }
-
-        if (boxY + boxHeight > this.height - 8) {
-            boxY = this.height - boxHeight - 8;
-        }
-
-        ctx.fillStyle = background;
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-        ctx.strokeStyle = border;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-
-        ctx.fillStyle = color;
-        lines.forEach((line, index) => {
-            ctx.fillText(line, boxX + paddingX, boxY + paddingY + (index * lineHeight));
-        });
-
-        ctx.restore();
-    }
-
-    updateTowerShopHint() {
-        const hint = document.getElementById('towerShopHint');
-        if (!hint) return;
-
-        if (!this.started || !this.gameRunning) {
-            hint.textContent = 'Select a tower to buy, then click the map to place it.';
-            return;
-        }
-
-        if (!this.showTooltips) {
-            hint.textContent = this.getSelectedTowerHelpText();
-            return;
-        }
-
-        if (this.hoveredTowerShopKey) {
-            hint.textContent = this.getTowerHelpText(this.hoveredTowerShopKey);
-            return;
-        }
-
-        hint.textContent = this.getSelectedTowerHelpText();
-    }
-
-    renderHoverTooltip() {
-        if (!this.showTooltips) return;
-        if (this.selectedTower) return;
-        if (!this.hoveredPlacedTower) return;
-
-        this.drawTooltipBox(
-            this.getPlacedTowerHelpText(this.hoveredPlacedTower),
-            this.mouseX,
-            this.mouseY,
-            { background: 'rgba(20, 24, 34, 0.9)', border: 'rgba(255, 255, 255, 0.24)' }
-        );
     }
 
     buildTowerShopCards(container) {
@@ -1921,7 +1597,6 @@ class Game {
                     : 'Select a tower to buy, then click the map to place it.';
             }
         }
-        this.updateTowerShopHint();
 
         Object.keys(TOWER_TYPES).forEach(key => {
             // Fix the ID lookup - try both with and without space
@@ -2043,28 +1718,6 @@ class Game {
         const def = TOWER_TYPES[this.selectedTower];
         if (!isTowerShopAvailable(this.selectedTower)) return;
 
-        if (!this.showTooltips) {
-            const placementIssue = this.getTowerPlacementIssue(this.mouseX, this.mouseY, def);
-            const canAfford = this.money >= def.cost;
-            const valid = !placementIssue && canAfford;
-
-            const px = this.mouseX - def.width / 2;
-            const py = this.mouseY - def.height / 2;
-
-            ctx.beginPath();
-            ctx.arc(this.mouseX, this.mouseY, def.range, 0, Math.PI * 2);
-            ctx.strokeStyle = valid ? 'rgba(255,255,255,0.20)' : 'rgba(255,0,0,0.25)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            ctx.fillStyle = valid ? def.color + 'aa' : 'rgba(220, 30, 30, 0.55)';
-            ctx.fillRect(px, py, def.width, def.height);
-            ctx.strokeStyle = valid ? '#ffffff' : '#ff4444';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(px, py, def.width, def.height);
-            return;
-        }
-
         const placementIssue = this.getTowerPlacementIssue(this.mouseX, this.mouseY, def);
         const canAfford = this.money >= def.cost;
         const valid = !placementIssue && canAfford;
@@ -2086,6 +1739,7 @@ class Game {
         ctx.lineWidth = 2;
         ctx.strokeRect(px, py, def.width, def.height);
 
+        // Tooltip
         const label = !canAfford
             ? `Need $${def.cost} (have $${this.money})`
             : placementIssue ? `Cannot place: ${placementIssue} ` : `Place ${def.name} ($${def.cost})`;
@@ -2109,8 +1763,6 @@ class Game {
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
-        this.hoveredPlacedTower = null;
-        this.hoveredTowerShopKey = null;
         this.storeOpen = false;
 
         // Hide the right-side store dock when returning to menu
@@ -4013,8 +3665,6 @@ class Game {
         this.placedTowers = [];
         this.selectedTower = null;
         this.selectedPlacedTower = null;
-        this.hoveredPlacedTower = null;
-        this.hoveredTowerShopKey = null;
         this.storeOpen = false;
         this.exp = 0;
         this.level = 1;
@@ -4119,8 +3769,6 @@ class Game {
 
         // Render particles last
         this.particles.forEach(particle => particle.render(this.ctx));
-
-        this.renderHoverTooltip();
 
         // MOVE WAVE START BUTTON TO HERE (RENDER LAST SO IT'S ON TOP)
         if (this.started && this.gameRunning && this.enemiesAlive === 0 && (this.enemiesSpawned >= this.totalEnemiesInWave || this.totalEnemiesInWave === 0)) {
