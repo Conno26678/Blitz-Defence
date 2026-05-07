@@ -279,8 +279,8 @@ class Game {
         this.waveComplete = false;
         this.totalWaves = this.waveManager.getTotalWaves();
         this.spawnTimer = 0;
-        this.spawnDelay = 250; 
-        this.waveStartAllowed = false; 
+        this.spawnDelay = 250;
+        this.waveStartAllowed = false;
         this.autoStart = false; // Disable auto-starting next wave for manual control
 
         // Multi-track spawning modes
@@ -314,7 +314,7 @@ class Game {
         this.mapManager = new MapManager(this.width, this.height);
 
         // Tower system
-        this.placedTowers = [];         
+        this.placedTowers = [];
         this.selectedTower = null;       // Key from TOWER_TYPES currently selected in shop
         this.selectedPlacedTower = null;
         this.hoveredPlacedTower = null;
@@ -330,7 +330,7 @@ class Game {
 
         this.renderer = new GameRenderer(this);
 
-        this.showStartMenu(); 
+        this.showStartMenu();
         this.setupEventListeners();
 
         // Load player customization from server
@@ -562,7 +562,7 @@ class Game {
     // }
 
     hideAllMenus() {
-        const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu', 'gameOver', 'victoryMenu', 'mapSelectionMenu', 'smithCutscene'];
+        const menuIds = ['startMenu', 'pauseMenu', 'gameOver', 'victoryMenu', 'mapSelectionMenu', 'smithCutscene'];
         menuIds.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
@@ -1188,18 +1188,25 @@ class Game {
         if (tower.type === 'gambler' && gamblerRollLocked) {
             upgradeButton.textContent = 'Roll used this turn';
             upgradeButton.disabled = true;
+        } if (tower.type === 'gambler' && gamblerRollLocked) {
+            upgradeButton.textContent = 'Roll used this turn';
+            upgradeButton.disabled = true;
+        } else if (tower.type === 'grohl' && nextUpgrade.id === 'sacrifice') {
+            // 🎸 Special handling for Grohl FIRST, before other checks
+            upgradeButton.textContent = `Buy ${nextUpgrade.name} (${nextUpgrade.cost})`;
+            upgradeButton.disabled = false; // Always allow Grohl upgrade
+            upgradeButton.dataset.upgradeId = nextUpgrade.id;
         } else if (tower.type === 'gambler') {
             upgradeButton.textContent = `Roll the Dice ($${nextUpgrade.cost})`;
             upgradeButton.disabled = this.money < nextUpgrade.cost;
-        // 🎸 Special handling for Grohl's "Everything you have and more" upgrade
-        if (tower.type === 'grohl' && nextUpgrade.id === 'sacrifice') {
-            upgradeButton.textContent = `Buy ${nextUpgrade.name} (${nextUpgrade.cost})`;
-            upgradeButton.disabled = false; // Always allow Grohl upgrade
+            upgradeButton.dataset.upgradeId = nextUpgrade.id;
         } else {
             upgradeButton.textContent = `Buy ${nextUpgrade.name} ($${nextUpgrade.cost})`;
             upgradeButton.disabled = this.money < nextUpgrade.cost;
+            upgradeButton.dataset.upgradeId = nextUpgrade.id;
         }
-        upgradeButton.dataset.upgradeId = nextUpgrade.id;
+
+
     }
 
     buySelectedTowerUpgrade() {
@@ -1223,6 +1230,30 @@ class Game {
 
         const [nextUpgrade] = tower.getAvailableUpgrades();
         if (!nextUpgrade) return;
+
+        // 🎸 Special handling for Grohl's "Everything you have and more" upgrade
+        if (tower.type === 'grohl' && nextUpgrade.id === 'sacrifice') {
+            // Apply the upgrade first
+            const applied = tower.applyUpgrade(nextUpgrade.id);
+            if (!applied) return;
+
+            // THEN set money to 0 (no subtraction needed since cost is a string)
+            this.money = 0;
+
+            // Sell all other towers and give refund
+            this.sellAllOtherTowers(tower);
+
+            // Switch to demonic music
+            setTimeout(() => {
+                this.playDemonicGrohlMusic();
+            }, 1000);
+
+            this.updateGameUI();
+            console.log(`🎸 Grohl has consumed all! Money: ${this.money}`);
+            return;
+        }
+
+        // Normal upgrade logic for all other towers
         if (this.money < nextUpgrade.cost) return;
         if (tower.type === 'gambler' && tower.gamblerUpgradeWavePurchased === this.waveNumber) {
             return;
@@ -1232,6 +1263,8 @@ class Game {
         if (!applied) return;
 
         this.money -= applied.cost;
+
+        // Play appropriate sound effects
         if (tower.type === 'wizard' && applied.id === 'spellweaving') {
             this.playSound('wizardDoubleStrike');
         } else if (tower.type === 'wizard' && applied.id === 'untoldPower') {
@@ -1255,51 +1288,14 @@ class Game {
             this.playSound('plankton');
         } else if (tower.type === 'railgun' && applied.id === 'mikubeam') {
             this.playSound('mikuBeam');
-
-        // 🎸 Special handling for Grohl's "Everything you have and more" upgrade
-        if (tower.type === 'grohl' && nextUpgrade.id === 'sacrifice') {
-            // Apply the upgrade first
-            const applied = tower.applyUpgrade(nextUpgrade.id);
-            if (!applied) return;
-
-            // THEN set money to 0 (no subtraction needed)
-            this.money = 0;
-
-            // Special handling for Grohl tower upgrade
-            this.sellAllOtherTowers(tower);
-
-            // Switch to demonic music
-            setTimeout(() => {
-                this.playDemonicGrohlMusic();
-            }, 1000);
         } else {
-            // Normal upgrade logic for all other towers
-            if (this.money < nextUpgrade.cost) return;
-
-            const applied = tower.applyUpgrade(nextUpgrade.id);
-            if (!applied) return;
-
-            this.money -= applied.cost;
-
-            // Handle other special tower upgrades
-            if (tower.type === 'gambler' && applied.id === 'luckyCharm') {
-                this.playSound('diceRoll');
-            } else if (tower.type === 'hacker' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
-                this.playSound('getOffFloor');
-            } else if (tower.type === 'overlord' && tower.isMaxUpgradeLevel && tower.isMaxUpgradeLevel()) {
-                this.playSound('flintChicken');
-            } else if (tower.type === 'blaster' && applied.id === 'plankton') {
-                this.playSound('plankton');
-            } else if (tower.type === 'railgun' && applied.id === 'mikubeam') {
-                this.playSound('mikuBeam');
-            } else {
-                this.playSound('levelUp');
-            }
+            this.playSound('levelUp');
         }
 
         this.updateGameUI();
         console.log(`Upgraded ${tower.name} with ${nextUpgrade.name}. Money left: ${this.money}`);
     }
+
 
 
     sellSelectedTower() {
@@ -1687,7 +1683,6 @@ class Game {
             // Place the tower yo
             const placedTower = new Tower(x, y, this.selectedTower, this);
             this.placedTowers.push(placedTower);
-            this.setSelectedPlacedTower(placedTower);
             this.money -= def.cost;
 
             // Special sound effects for different towers
@@ -1697,16 +1692,22 @@ class Game {
 
             if (placedTower.type === 'grohl') {
                 // 🎸 Special handling for Grohl tower
-                this.lockAudioSettings(); // Lock audio settings when Grohl is placed
+                this.lockAudioSettings();
                 setTimeout(() => {
-                    this.playGrohlMusic(); // Start music after brief delay
+                    this.playGrohlMusic();
                 }, 500);
             }
 
-            this.selectedTower = null;
-            this.updateGameUI();
+            this.selectedTower = null;  // ← Clear shop selection
+
+            // Select the placed tower - this will update the UI automatically
+            this.setSelectedPlacedTower(placedTower);
+            this.toggleStoreDock(true);
+
             console.log(`Placed ${def.name} at (${Math.round(x)}, ${Math.round(y)}). Money left: ${this.money}`);
             return;
+
+
         }
 
         // Handle other canvas clicks here if needed
@@ -3176,11 +3177,7 @@ class Game {
 
         // Don't check progress if no wave has been loaded yet
         if (this.totalEnemiesInWave === 0) {
-            return;
-        }
-
-        if (this.smithVictoryPending || this.finalBossReachedBase) {
-            return;
+            return; // Exit early - no wave to check progress on
         }
 
         if (this.smithVictoryPending || this.finalBossReachedBase) {
@@ -3251,9 +3248,9 @@ class Game {
                 }
 
 
-            if (!this.gameRunning || this.finalBossReachedBase) {
-                return;
-            }
+                if (!this.gameRunning || this.finalBossReachedBase) {
+                    return;
+                }
 
                 const nextWave = result.nextWave;
 
@@ -3829,75 +3826,53 @@ class Game {
 
             let hit = false;
             let hitCount = 0;
+            let shouldSkipRegularCollision = false; // ← Moved OUTSIDE the if block
 
-            // Check vs enemies
-                // Handle bomb explosions (bomb projectiles detonate on ANY hit)
-                let shouldSkipRegularCollision = false;
-                if (bullet.isBomb && bullet.explosionArea) {
-                    let bombHit = false;
-                    const explosionX = bullet.x + bullet.width / 2;
-                    const explosionY = bullet.y + bullet.height / 2;
-                    const explosionRadius = bullet.explosionArea;
+            // Handle bomb explosions (bomb projectiles detonate on ANY hit)
+            if (bullet.isBomb && bullet.explosionArea) {
+                let bombHit = false;
+                const explosionX = bullet.x + bullet.width / 2;
+                const explosionY = bullet.y + bullet.height / 2;
+                const explosionRadius = bullet.explosionArea;
 
-                    // Apply explosion damage to all enemies within radius
-                    const applyExplosionDamage = (enemyList) => {
-                        for (let j = enemyList.length - 1; j >= 0; j--) {
-                            const enemy = enemyList[j];
-                            if (!enemy || enemy.hp <= 0) continue;
-                        
-                            const ex = enemy.x + (enemy.width || 0) / 2;
-                            const ey = enemy.y + (enemy.height || 0) / 2;
-                            const dx = ex - explosionX;
-                            const dy = ey - explosionY;
-                            const dist = Math.sqrt(dx * dx + dy * dy);
-                        
-                            if (dist <= explosionRadius) {
-                                const damage = getTowerAdjustedDamage(bullet, enemy);
-                                enemy.takeDamage ? enemy.takeDamage(damage) : (enemy.hp -= damage);
-                                applyTowerHitEffects(bullet, enemy);
-                                bombHit = true;
-                            
-                                if (enemy.hp <= 0) {
-                                    if (enemy.isFinalBoss && !this.smithCutsceneActive && !this.smithCutsceneResolved) {
-                                        this.showSmithCutscene(enemy);
-                                        continue;
-                                    }
+                // Apply explosion damage to all enemies within radius
+                const applyExplosionDamage = (enemyList) => {
+                    for (let j = enemyList.length - 1; j >= 0; j--) {
+                        const enemy = enemyList[j];
+                        if (!enemy || enemy.hp <= 0) continue;
 
-                                    const bomberKilledBoss = enemyList === this.bosses
-                                        && bullet.sourceTower
-                                        && bullet.sourceTower.type === 'bomber';
-                                    if (bomberKilledBoss) {
-                                        this.playSound('vats');
-                                    }
-                                    this.money += enemy.worth || 0;
-                                    this.addExp(5);
-                                    if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
-                                        this.player.health++;
-                                    }
-                                    enemyList.splice(j, 1);
+                        const ex = enemy.x + (enemy.width || 0) / 2;
+                        const ey = enemy.y + (enemy.height || 0) / 2;
+                        const dx = ex - explosionX;
+                        const dy = ey - explosionY;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist <= explosionRadius) {
+                            const damage = getTowerAdjustedDamage(bullet, enemy);
+                            enemy.takeDamage ? enemy.takeDamage(damage) : (enemy.hp -= damage);
+                            applyTowerHitEffects(bullet, enemy);
+                            bombHit = true;
+
+                            if (enemy.hp <= 0) {
+                                if (enemy.isFinalBoss && !this.smithCutsceneActive && !this.smithCutsceneResolved) {
+                                    this.showSmithCutscene(enemy);
+                                    continue;
+                                }
+
+                                const bomberKilledBoss = enemyList === this.bosses
+                                    && bullet.sourceTower
+                                    && bullet.sourceTower.type === 'bomber';
+                                if (bomberKilledBoss) {
+                                    this.playSound('vats');
+                                }
+                                this.addMoney(enemy.worth || 0);
+                                this.addExp(5);
+                                if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
+                                    this.player.health++;
                                 }
                                 enemyList.splice(j, 1);
                             }
                         }
-                    };
-
-                    // Check all enemy types within explosion radius
-                    applyExplosionDamage(this.enemies);
-                    applyExplosionDamage(this.shooters);
-                    applyExplosionDamage(this.tanks);
-                    applyExplosionDamage(this.sprinters);
-                    applyExplosionDamage(this.bosses);
-
-                    if (bombHit) {
-                        this.createExplosion(explosionX, explosionY);
-                        this.addSpellAnimation('bombBlast', explosionX, explosionY, {
-                            radius: Math.max(18, Math.min(36, explosionRadius * 0.75)),
-                            life: 2000,
-                            color: '#ffb74d'
-                        });
-                        this.playSound('enemyHit');
-                        this.bullets.splice(i, 1);
-                        shouldSkipRegularCollision = true;
                     }
                 };
 
@@ -3910,13 +3885,18 @@ class Game {
 
                 if (bombHit) {
                     this.createExplosion(explosionX, explosionY);
+                    this.addSpellAnimation('bombBlast', explosionX, explosionY, {
+                        radius: Math.max(18, Math.min(36, explosionRadius * 0.75)),
+                        life: 2000,
+                        color: '#ffb74d'
+                    });
                     this.playSound('enemyHit');
                     this.bullets.splice(i, 1);
-                    shouldSkipRegularCollision = true;
+                    shouldSkipRegularCollision = true; // ← Now this works!
                 }
             }
 
-            if (shouldSkipRegularCollision) continue;
+            if (shouldSkipRegularCollision) continue; // ← Now this works!
 
             // Check vs enemies
             for (let j = this.enemies.length - 1; j >= 0; j--) {
@@ -4068,7 +4048,7 @@ class Game {
             if (hit && hitCount >= bullet.pierce) {
                 this.bullets.splice(i, 1);
             }
-        };
+        }
     }
 
     updateBossHealthBar() {

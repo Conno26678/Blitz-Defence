@@ -661,7 +661,7 @@ class Smith {
     }
 }
 
-class Hayden extends Boss {
+class Hayden extends Smith {
     constructor(x, y) {
         super(x, y);
         this.width = 100;
