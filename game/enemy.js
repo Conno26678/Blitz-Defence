@@ -219,11 +219,11 @@ class Tank2 extends EnemyBase {
         // One bold outer plate
         ctx.fillStyle = this.innerColor;
         ctx.fillRect(this.x + 4, this.y + 4, this.width - 8, this.height - 8);
-        
+
         // Armor band across middle
         ctx.fillStyle = '#4a5054';
         ctx.fillRect(this.x + 6, this.y + Math.floor(this.height / 2) - 4, this.width - 12, 8);
-        
+
         // Reinforced central chamber
         ctx.fillStyle = this.coreColor;
         ctx.fillRect(this.x + 14, this.y + 12, this.width - 28, this.height - 24);
@@ -543,8 +543,8 @@ class Smith {
         this.width = 100;  // Larger than normal boss
         this.height = 100;
         this.speed = 0.65;   // Slower but menacing
-        this.hp = 100000;     // Massive health pool
-        this.maxHp = 100000;
+        this.hp = 85000;     // Massive health pool
+        this.maxHp = 90000;
         this.damage = 999;  // Instant kill if it reaches base
         this.worth = 0;     // No money reward - this is about survival
 
@@ -571,7 +571,7 @@ class Smith {
     }
 
     update(deltaTime) {
-        // Smith doesn't get enhanced properties - he's already terrifying enough
+        // Smith doesn't get enhanced properties
         this.followPath(deltaTime);
     }
 
@@ -661,7 +661,7 @@ class Smith {
     }
 }
 
-class Hayden extends Boss {
+class Hayden extends Smith {
     constructor(x, y) {
         super(x, y);
         this.width = 100;
@@ -890,16 +890,12 @@ function makeEnemyFortified(enemy) {
     enemy.originalHp = enemy.hp;
     enemy.armorHp = Math.ceil(enemy.hp * 0.5); // Armor has 50% of base HP
     enemy.armorBroken = false;
-
-    console.log(`${enemy.constructor.name} spawned with Fortified armor (${enemy.armorHp} armor HP)`);
 }
 
 // Hidden Enhancement  
 function makeEnemyHidden(enemy) {
     enemy.hidden = true;
     enemy.alpha = 0.3; // Semi-transparent
-
-    console.log(`${enemy.constructor.name} spawned with Hidden stealth`);
 }
 
 // Glitch Enhancement
@@ -909,6 +905,19 @@ function makeEnemyGlitched(enemy) {
     enemy.glitchCooldown = 2000 + Math.random() * 1000; // 2-3 seconds between glitches
     enemy.isGlitching = false;
     enemy.glitchDuration = 500; // 0.5 seconds of invulnerability
+}
 
-    console.log(`${enemy.constructor.name} spawned with Glitch instability`);
+// Scaling enemy properties based on wave number for endless mode
+function applyEndlessScaling(enemy, waveNumber) {
+    if (waveNumber <= 40) return; // No scaling before endless mode
+
+    const endlessWave = waveNumber - 40;
+    const scalingTeir = Math.floor((endlessWave - 1) / 10); // Every 10 waves, increase difficulty tier
+    const scalingMultiplier = 1 + (scalingTeir * 0.05); // 5% increase per tier
+
+    // Scale all enemy stats
+    enemy.speed *= scalingMultiplier;
+    enemy.hp = Math.ceil(enemy.hp * scalingMultiplier);
+    enemy.maxHp = enemy.hp;
+    enemy.damage = Math.ceil(enemy.damage * scalingMultiplier);
 }
