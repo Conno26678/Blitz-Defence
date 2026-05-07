@@ -148,12 +148,18 @@ const TOWER_TYPES = {
     silly: {
         name: 'Silly Billy',
         cost: 175,
-        damage: 1,
+        damage: 0.5,
         range: 85,
         fireRate: 1200,
         stunChance: 1,
         stunDuration: 2200,
         stunRadius: 20,
+        stickyAreaChance: 0.25,
+        stickyAreaDuration: 2400,
+        stickyAreaRadius: 24,
+        stickyAreaMultiplier: 0.5,
+        stickyAreaDamagePerSecond: 0,
+        stickyAreaVariant: 'green',
         projectileCount: 1,
         projectileSpeed: 1,
         poisonDamage: 0,
@@ -851,50 +857,60 @@ const TOWER_UPGRADES = {
             id: 'stickySilly',
             tier: 1,
             name: 'Sticky Silly',
-            description: 'Enemies get stuck for longer and nearby enemies get caught in the mess.',
+            description: 'Enemies get stuck for longer and have a chance to leave a green sticky bubble behind.',
             cost: 350,
             image: '/img/sillyBilly.png',
             apply: (tower) => {
                 tower.stunDuration = Math.max(2800, (tower.stunDuration || 0) + 700);
                 tower.stunRadius = Math.max(tower.stunRadius || 0, 24);
+                tower.stickyAreaChance = Math.min(0.6, (tower.stickyAreaChance || 0) + 0.1);
+                tower.stickyAreaDuration = Math.max(2600, (tower.stickyAreaDuration || 0) + 400);
+                tower.stickyAreaRadius = Math.max(tower.stickyAreaRadius || 0, 26);
+                tower.stickyAreaMultiplier = 0.5;
+                tower.stickyAreaVariant = 'green';
             }
         },
         {
             id: 'gooSplash',
             tier: 2,
             name: 'Goo Splash',
-            description: 'The stuck effect splashes to a wider area around the main target.',
+            description: 'The stuck effect splashes to a wider green area around the main target.',
             cost: 700,
             image: '/img/sillyBilly.png',
             apply: (tower) => {
                 tower.stunRadius = (tower.stunRadius || 0) + 18;
                 tower.range += 10;
+                tower.stickyAreaChance = Math.min(0.7, (tower.stickyAreaChance || 0) + 0.1);
+                tower.stickyAreaRadius = (tower.stickyAreaRadius || 0) + 18;
+                tower.stickyAreaDuration = Math.max(tower.stickyAreaDuration || 0, 2800);
             }
         },
         {
             id: 'toxicTickle',
             tier: 3,
             name: 'Toxic Tickle',
-            description: 'Adds poison damage over time to every enemy the silly tower sticks.',
+            description: 'Turns the sticky bubble toxic, coloring it purple and adding half damage per second.',
             cost: 1400,
             image: '/img/sillyBilly.png',
             apply: (tower) => {
-                tower.poisonDamage = (tower.poisonDamage || 0) + 1;
-                tower.poisonDuration = Math.max(tower.poisonDuration || 0, 3500);
-                tower.poisonTickRate = Math.max(250, (tower.poisonTickRate || 500) - 100);
+                tower.stickyAreaDamagePerSecond = Math.max(0.5, tower.stickyAreaDamagePerSecond || 0.5);
+                tower.stickyAreaVariant = 'purple';
+                tower.stickyAreaChance = Math.min(0.75, (tower.stickyAreaChance || 0) + 0.05);
+                tower.stickyAreaRadius = (tower.stickyAreaRadius || 0) + 4;
             }
         },
         {
             id: 'hazmatHysteria',
             tier: 4,
             name: 'Hazmat Hysteria',
-            description: 'More poison damage and a larger stuck radius with a faster firing rhythm.',
+            description: 'The toxic bubble grows and starts dealing more than half a damage per second.',
             cost: 2900,
             image: '/img/sillyBilly.png',
             apply: (tower) => {
-                tower.poisonDamage = (tower.poisonDamage || 0) + 2;
-                tower.poisonDuration = Math.max(tower.poisonDuration || 0, 5000);
+                tower.stickyAreaDamagePerSecond = Math.max(tower.stickyAreaDamagePerSecond || 0, 1);
                 tower.stunRadius = (tower.stunRadius || 0) + 24;
+                tower.stickyAreaRadius = (tower.stickyAreaRadius || 0) + 12;
+                tower.stickyAreaDuration = Math.max(tower.stickyAreaDuration || 0, 3600);
                 scaleFireRate(tower, 0.85, 120);
             }
         },
@@ -902,30 +918,32 @@ const TOWER_UPGRADES = {
             id: 'laughingGas',
             tier: 5,
             name: 'Laughing Gas',
-            description: 'Enemies stay stuck longer, poison harder, and the radius expands even more.',
+            description: 'Enemies stay stuck longer, the purple bubble lingers, and the damage ramps up.',
             cost: 5200,
             image: '/img/sillyBilly.png',
             apply: (tower) => {
                 tower.stunDuration = Math.max(tower.stunDuration || 0, 4500);
                 tower.stunRadius = (tower.stunRadius || 0) + 20;
-                tower.poisonDamage = (tower.poisonDamage || 0) + 2;
-                tower.poisonTickRate = Math.max(180, (tower.poisonTickRate || 500) - 80);
+                tower.stickyAreaDamagePerSecond = Math.max(tower.stickyAreaDamagePerSecond || 0, 1.5);
+                tower.stickyAreaRadius = (tower.stickyAreaRadius || 0) + 10;
+                tower.stickyAreaDuration = Math.max(tower.stickyAreaDuration || 0, 4800);
             }
         },
         {
             id: 'ultimateSilly',
             tier: 6,
             name: 'Ultimate Silly Billy',
-            description: 'Big sticky radius, strong poison, and constant enemy lockdown.',
+            description: 'Big sticky radius, stronger toxic bubble damage, and constant enemy lockdown.',
             cost: 10000,
-            image: '/img/sillyBilly.png',
+            image: '/img/glue.png',
             apply: (tower) => {
-                tower.damage += 2;
+                tower.damage += 1;
                 tower.stunDuration = Math.max(tower.stunDuration || 0, 5200);
                 tower.stunRadius = (tower.stunRadius || 0) + 28;
-                tower.poisonDamage = (tower.poisonDamage || 0) + 3;
-                tower.poisonDuration = Math.max(tower.poisonDuration || 0, 6500);
-                tower.poisonTickRate = Math.max(140, (tower.poisonTickRate || 500) - 120);
+                tower.stickyAreaDamagePerSecond = Math.max(tower.stickyAreaDamagePerSecond || 0, 2);
+                tower.stickyAreaRadius = (tower.stickyAreaRadius || 0) + 16;
+                tower.stickyAreaDuration = Math.max(tower.stickyAreaDuration || 0, 6000);
+                tower.stickyAreaChance = Math.min(0.9, (tower.stickyAreaChance || 0) + 0.1);
                 scaleFireRate(tower, 0.8, 90);
             }
         }
@@ -1019,6 +1037,12 @@ class Tower {
         this.stunChance = def.stunChance || 0;
         this.stunDuration = def.stunDuration || 0;
         this.stunRadius = def.stunRadius || 0;
+        this.stickyAreaChance = def.stickyAreaChance || 0;
+        this.stickyAreaDuration = def.stickyAreaDuration || 0;
+        this.stickyAreaRadius = def.stickyAreaRadius || 0;
+        this.stickyAreaMultiplier = def.stickyAreaMultiplier || 1;
+        this.stickyAreaDamagePerSecond = def.stickyAreaDamagePerSecond || 0;
+        this.stickyAreaVariant = def.stickyAreaVariant || 'green';
         this.poisonDamage = def.poisonDamage || 0;
         this.poisonDuration = def.poisonDuration || 0;
         this.poisonTickRate = def.poisonTickRate || 0;
@@ -1096,6 +1120,10 @@ class Tower {
         }
         this.level += 1;
 
+        if (this.type === 'silly' && this.isMaxUpgradeLevel()) {
+            this.currentUpgradeImage = '/img/glue.png';
+        }
+
         if (this.type === 'gambler' && this.level >= 10) {
             this.currentUpgradeImage = '/img/gamblerUpgrade.png';
         }
@@ -1112,6 +1140,10 @@ class Tower {
     }
 
     getMaxLevelImagePath() {
+        if (this.type === 'silly' && this.isMaxUpgradeLevel()) {
+            return '/img/glue.png';
+        }
+
         if (this.type === 'gambler' && this.level >= 10) {
             return '/img/gamblerUpgrade.png';
         }
@@ -1235,6 +1267,12 @@ class Tower {
             bullet.stunChance = this.stunChance || 0;
             bullet.stunDuration = this.stunDuration || 0;
             bullet.stunRadius = this.stunRadius || 0;
+            bullet.stickyAreaChance = this.stickyAreaChance || 0;
+            bullet.stickyAreaDuration = this.stickyAreaDuration || 0;
+            bullet.stickyAreaRadius = this.stickyAreaRadius || 0;
+            bullet.stickyAreaMultiplier = this.stickyAreaMultiplier || 1;
+            bullet.stickyAreaDamagePerSecond = this.stickyAreaDamagePerSecond || 0;
+            bullet.stickyAreaVariant = this.stickyAreaVariant || 'green';
             bullet.poisonDamage = this.poisonDamage || 0;
             bullet.poisonDuration = this.poisonDuration || 0;
             bullet.poisonTickRate = this.poisonTickRate || 0;

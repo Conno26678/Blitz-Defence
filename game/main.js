@@ -20,7 +20,7 @@ function hidePayment() {
 }
 
 //Some don't work on intended or just need some touching up before being added to the shop
-const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'grohl', 'gambler', 'bomber', 'kid', 'oppenheimer', 'renegade']);
+const AVAILABLE_TOWER_SHOP_KEYS = new Set(['shooter', 'blaster', 'wizard', 'hacker', 'overlord', 'generator', 'sentinel', 'railgun', 'grohl', 'gambler', 'bomber', 'kid', 'oppenheimer', 'renegade','silly']);
 
 async function checkTowerAvailability() {
     try {
@@ -2700,7 +2700,7 @@ class Game {
 
         for (let i = 0; i < this.spellZones.length; i++) {
             const zone = this.spellZones[i];
-            if (!zone || zone.type !== 'slow' || zone.expiresAt <= now) continue;
+            if (!zone || zone.expiresAt <= now || typeof zone.multiplier !== 'number') continue;
             const ex = enemy.x + (enemy.width || 0) / 2;
             const ey = enemy.y + (enemy.height || 0) / 2;
             const dx = ex - zone.x;
@@ -2762,6 +2762,29 @@ class Game {
                     enemy.poisonTickTimer = 0;
                     enemy.poisonDamage = 0;
                     enemy.poisonTickRate = 0;
+                }
+            }
+
+            let stickyDamage = 0;
+            for (let i = 0; i < this.spellZones.length; i++) {
+                const zone = this.spellZones[i];
+                if (!zone || zone.expiresAt <= now || typeof zone.damagePerSecond !== 'number' || zone.damagePerSecond <= 0) continue;
+
+                const ex = enemy.x + (enemy.width || 0) / 2;
+                const ey = enemy.y + (enemy.height || 0) / 2;
+                const dx = ex - zone.x;
+                const dy = ey - zone.y;
+
+                if ((dx * dx + dy * dy) <= zone.radius * zone.radius) {
+                    stickyDamage += zone.damagePerSecond * (deltaTime / 1000);
+                }
+            }
+
+            if (stickyDamage > 0) {
+                if (enemy.takeDamage) {
+                    enemy.takeDamage(stickyDamage);
+                } else {
+                    enemy.hp -= stickyDamage;
                 }
             }
 
@@ -3737,6 +3760,37 @@ class Game {
 
             spawnRefractionShards(bullet, target);
 
+            const createStickyBubble = (enemy, variant = 'green') => {
+                if (!enemy) return;
+
+                const sx = enemy.x + (enemy.width || 0) / 2;
+                const sy = enemy.y + (enemy.height || 0) / 2;
+                const radius = Math.max(12, bullet.stickyAreaRadius || bullet.stunRadius || 20);
+                const duration = Math.max(1000, bullet.stickyAreaDuration || 0);
+                const colors = variant === 'purple'
+                    ? {
+                        fill: 'rgba(171, 71, 188, 0.24)',
+                        stroke: 'rgba(206, 147, 216, 0.7)'
+                    }
+                    : {
+                        fill: 'rgba(102, 187, 106, 0.22)',
+                        stroke: 'rgba(165, 214, 167, 0.7)'
+                    };
+
+                this.spellZones.push({
+                    type: 'sticky',
+                    variant,
+                    x: sx,
+                    y: sy,
+                    radius,
+                    multiplier: bullet.stickyAreaMultiplier || 0.5,
+                    damagePerSecond: bullet.stickyAreaDamagePerSecond || 0,
+                    expiresAt: Date.now() + duration,
+                    fillStyle: colors.fill,
+                    strokeStyle: colors.stroke
+                });
+            };
+
             const applyStatusToEnemy = (enemy) => {
                 if (!enemy || enemy.hp <= 0) return;
 
@@ -3794,6 +3848,10 @@ class Game {
                     }
                 } else {
                     applyStatusToEnemy(target);
+                }
+
+                if (bullet.stickyAreaChance && Math.random() < bullet.stickyAreaChance) {
+                    createStickyBubble(target, bullet.stickyAreaVariant || 'green');
                 }
             }
 
@@ -4176,11 +4234,16 @@ class Game {
 
         for (let i = 0; i < this.spellZones.length; i++) {
             const zone = this.spellZones[i];
-            if (!zone || zone.expiresAt <= now || zone.type !== 'slow') continue;
+            if (!zone || zone.expiresAt <= now || (zone.type !== 'slow' && zone.type !== 'sticky')) continue;
 
             ctx.save();
-            ctx.fillStyle = 'rgba(140, 180, 200, 0.16)';
-            ctx.strokeStyle = 'rgba(180, 220, 255, 0.4)';
+            if (zone.type === 'sticky') {
+                ctx.fillStyle = zone.fillStyle || 'rgba(102, 187, 106, 0.22)';
+                ctx.strokeStyle = zone.strokeStyle || 'rgba(165, 214, 167, 0.7)';
+            } else {
+                ctx.fillStyle = 'rgba(140, 180, 200, 0.16)';
+                ctx.strokeStyle = 'rgba(180, 220, 255, 0.4)';
+            }
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
