@@ -2700,12 +2700,29 @@ class Game {
 
         for (let i = 0; i < this.spellZones.length; i++) {
             const zone = this.spellZones[i];
-            if (!zone || zone.expiresAt <= now || typeof zone.multiplier !== 'number') continue;
+            if (!zone || zone.expiresAt <= now) continue;
+
             const ex = enemy.x + (enemy.width || 0) / 2;
             const ey = enemy.y + (enemy.height || 0) / 2;
             const dx = ex - zone.x;
             const dy = ey - zone.y;
-            if ((dx * dx + dy * dy) <= zone.radius * zone.radius) {
+            if ((dx * dx + dy * dy) > zone.radius * zone.radius) continue;
+
+            // Sticky zones apply a temporary slow to each enemy and then grant a cooldown
+            if (zone.type === 'sticky' && typeof zone.multiplier === 'number') {
+                if ((enemy.stickyImmuneUntil || 0) <= now) {
+                    const effDur = Math.max(500, zone.effectDuration || 1200);
+                    enemy.spellSlowUntil = now + effDur;
+                    enemy.spellSlowMultiplier = zone.multiplier || 0.5;
+                    enemy.stickyImmuneUntil = now + effDur + (zone.reapplyCooldown || 2000);
+                    multiplier = Math.min(multiplier, enemy.spellSlowMultiplier || 1);
+                } else {
+                    // enemy currently immune; if they already have a slow active, respect it
+                    if ((enemy.spellSlowUntil || 0) > now) {
+                        multiplier = Math.min(multiplier, enemy.spellSlowMultiplier || 1);
+                    }
+                }
+            } else if (typeof zone.multiplier === 'number') {
                 multiplier = Math.min(multiplier, zone.multiplier || 1);
             }
         }
@@ -3785,7 +3802,12 @@ class Game {
                     radius,
                     multiplier: bullet.stickyAreaMultiplier || 0.5,
                     damagePerSecond: bullet.stickyAreaDamagePerSecond || 0,
+                    // How long the bubble itself lasts on the map
                     expiresAt: Date.now() + duration,
+                    // How long the slow effect applied to an enemy should last
+                    effectDuration: Math.max(500, bullet.stickyAreaEffectDuration || 1200),
+                    // Additional time before the same enemy can be affected again
+                    reapplyCooldown: Math.max(800, bullet.stickyAreaReapplyCooldown || 2000),
                     fillStyle: colors.fill,
                     strokeStyle: colors.stroke
                 });
